@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html style="background: transparent !important;">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Services</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: transparent !important;
+            background-color: transparent !important;
+            overflow: hidden;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        .tablet {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 400px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 2px solid #0066ff;
+            border-radius: 12px;
+            display: none;
+            z-index: 1000;
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+
+        .tablet.show {
+            display: block;
+        }
+
+        .tablet-header {
+            padding: 16px;
+            background: linear-gradient(135deg, #0066ff, #0044bb);
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .tablet-content {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .duty-btn {
+            background: #28a745;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+
+        .duty-btn.end-duty {
+            background: #dc3545;
+        }
+
+        .hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.8);
+            border: 1px solid #0066ff;
+            border-radius: 8px;
+            padding: 10px;
+            display: none;
+            color: white;
+            min-width: 150px;
+        }
+
+        .hud.show {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="tablet" class="tablet">
+        <div class="tablet-header">
+            <h3 id="stationName">Emergency Services</h3>
+            <button class="close-btn" onclick="closeTablet()">×</button>
+        </div>
+        <div class="tablet-content">
+            <h4 id="playerName">Officer Name</h4>
+            <p id="playerRank">Rank</p>
+            <div style="margin: 20px 0;">
+                <span>Status: </span>
+                <span id="dutyStatus">Off Duty</span>
+            </div>
+            <button id="dutyBtn" class="duty-btn" onclick="toggleDuty()">Start Duty</button>
+        </div>
+    </div>
+
+    <div id="hud" class="hud">
+        <div id="hudCallsign">Unit 1</div>
+        <div id="hudStatus">Available</div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let isOnDuty = false;
+
+        // Ensure transparent background
+        document.documentElement.style.background = 'transparent';
+        document.body.style.background = 'transparent';
+
+        window.addEventListener('message', function (event) {
+            const data = event.data;
+
+            switch (data.action) {
+                case 'showTablet':
+                    showTablet(data.data);
+                    break;
+                case 'hideTablet':
+                    hideTablet();
+                    break;
+                case 'showQuickHUD':
+                    showHUD(data.data);
+                    break;
+                case 'hideQuickHUD':
+                    hideHUD();
+                    break;
+            }
+        });
+
+        function showTablet(data) {
+            currentData = data;
+
+            if (data.station) {
+                document.getElementById('stationName').textContent = data.station.label || 'Emergency Services';
+            }
+
+            if (data.player) {
+                document.getElementById('playerName').textContent = data.player.name || 'Officer';
+                document.getElementById('playerRank').textContent = data.player.rank || 'Rank';
+            }
+
+            updateDutyDisplay(data.dutyStatus || false);
+
+            document.getElementById('tablet').classList.add('show');
+            console.log('Minimal tablet shown');
+        }
+
+        function hideTablet() {
+            document.getElementById('tablet').classList.remove('show');
+            console.log('Minimal tablet hidden');
+        }
+
+        function updateDutyDisplay(onDuty) {
+            isOnDuty = onDuty;
+            const statusEl = document.getElementById('dutyStatus');
+            const btnEl = document.getElementById('dutyBtn');
+
+            if (onDuty) {
+                statusEl.textContent = 'On Duty';
+                statusEl.style.color = '#28a745';
+                btnEl.textContent = 'End Duty';
+                btnEl.className = 'duty-btn end-duty';
+            } else {
+                statusEl.textContent = 'Off Duty';
+                statusEl.style.color = '#dc3545';
+                btnEl.textContent = 'Start Duty';
+                btnEl.className = 'duty-btn';
+            }
+        }
+
+        function toggleDuty() {
+            if (!currentData) return;
+
+            if (isOnDuty) {
+                fetch(`https://fl_core/endDuty`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ station: currentData.station?.id || 'unknown' })
+                });
+            } else {
+                fetch(`https://fl_core/startDuty`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ station: currentData.station?.id || 'unknown' })
+                });
+            }
+        }
+
+        function closeTablet() {
+            fetch(`https://fl_core/closeTablet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            hideTablet();
+        }
+
+        function showHUD(data) {
+            if (data.callsign) {
+                document.getElementById('hudCallsign').textContent = data.callsign;
+            }
+            if (data.status) {
+                document.getElementById('hudStatus').textContent = data.status;
+            }
+            document.getElementById('hud').classList.add('show');
+        }
+
+        function hideHUD() {
+            document.getElementById('hud').classList.remove('show');
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeTablet();
+            }
+        });
+
+        console.log('Minimal Emergency Services UI loaded');
+    </script>
+</body>
+
+</html>

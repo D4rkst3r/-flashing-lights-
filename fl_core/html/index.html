@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Services Tablet</title>
+    <link rel="stylesheet" href="modern-style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Emergency Services Tablet Interface -->
+    <div id="tabletContainer" class="tablet-container hidden">
+        <div class="tablet-frame">
+            <!-- Header -->
+            <div class="tablet-header">
+                <div class="header-left">
+                    <div class="status-indicator" id="connectionStatus"></div>
+                    <span class="station-code" id="stationCode">FD-1</span>
+                </div>
+                <div class="header-center">
+                    <h1 class="station-name" id="stationName">Fire Station 1</h1>
+                    <div class="current-time" id="currentTime">12:34:56</div>
+                </div>
+                <div class="header-right">
+                    <button class="close-btn" onclick="closeTablet()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="duty" onclick="switchTab('duty')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    Duty
+                </button>
+                <button class="tab-btn" data-tab="equipment" onclick="switchTab('equipment')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                    Equipment
+                </button>
+                <button class="tab-btn" data-tab="vehicles" onclick="switchTab('vehicles')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                        <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                        <path d="M5 17h-2v-6l2-5h9l4 5h1a2 2 0 0 1 2 2v4h-2"></path>
+                    </svg>
+                    Vehicles
+                </button>
+                <button class="tab-btn" data-tab="stats" onclick="switchTab('stats')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    Stats
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="tab-content">
+                <!-- Duty Tab -->
+                <div class="content-panel active" id="dutyPanel">
+                    <div class="panel-header">
+                        <h2>Duty Management</h2>
+                        <div class="duty-status-badge" id="dutyStatusBadge">Off Duty</div>
+                    </div>
+
+                    <div class="duty-card">
+                        <div class="officer-info">
+                            <div class="officer-avatar">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1.5">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </div>
+                            <div class="officer-details">
+                                <h3 id="officerName">John Doe</h3>
+                                <p id="officerRank">Firefighter</p>
+                                <p id="officerBadge">Badge #1234</p>
+                            </div>
+                        </div>
+
+                        <div class="duty-controls">
+                            <button class="duty-toggle-btn" id="dutyToggleBtn" onclick="toggleDuty()">
+                                <span class="btn-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                    </svg>
+                                </span>
+                                Start Duty
+                            </button>
+                        </div>
+
+                        <div class="duty-timer" id="dutyTimer" style="display: none;">
+                            <div class="timer-label">Time on Duty</div>
+                            <div class="timer-display" id="timerDisplay">00:00:00</div>
+                        </div>
+                    </div>
+
+                    <div class="shift-info">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Station</div>
+                                <div class="info-value" id="currentStation">Fire Station 1</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Unit</div>
+                                <div class="info-value" id="currentUnit">Engine 1</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Sector</div>
+                                <div class="info-value" id="currentSector">Alpha</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Shift</div>
+                                <div class="info-value" id="currentShift">Day</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Equipment Tab -->
+                <div class="content-panel" id="equipmentPanel">
+                    <div class="panel-header">
+                        <h2>Equipment & Gear</h2>
+                        <button class="refresh-btn" onclick="refreshEquipment()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="equipment-grid" id="equipmentGrid">
+                        <!-- Equipment items will be dynamically loaded -->
+                        <div class="equipment-category">
+                            <h3>Personal Protective Equipment</h3>
+                            <div class="equipment-items">
+                                <div class="equipment-item available">
+                                    <div class="item-icon">🦺</div>
+                                    <div class="item-info">
+                                        <div class="item-name">Turnout Gear</div>
+                                        <div class="item-status">Available</div>
+                                    </div>
+                                </div>
+                                <div class="equipment-item available">
+                                    <div class="item-icon">⛑️</div>
+                                    <div class="item-info">
+                                        <div class="item-name">Fire Helmet</div>
+                                        <div class="item-status">Available</div>
+                                    </div>
+                                </div>
+                                <div class="equipment-item assigned">
+                                    <div class="item-icon">🎭</div>
+                                    <div class="item-info">
+                                        <div class="item-name">SCBA Mask</div>
+                                        <div class="item-status">Assigned</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vehicles Tab -->
+                <div class="content-panel" id="vehiclesPanel">
+                    <div class="panel-header">
+                        <h2>Fleet Management</h2>
+                        <div class="fleet-status">
+                            <span class="status-dot available"></span>
+                            <span>3 Available</span>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-grid" id="vehicleGrid">
+                        <!-- Vehicle cards will be dynamically loaded -->
+                        <div class="vehicle-card available">
+                            <div class="vehicle-image">🚒</div>
+                            <div class="vehicle-info">
+                                <h3>Engine 1</h3>
+                                <p>Fire Truck</p>
+                                <div class="vehicle-stats">
+                                    <span>Fuel: 85%</span>
+                                    <span>Status: Available</span>
+                                </div>
+                            </div>
+                            <button class="spawn-btn" onclick="spawnVehicle('engine1')">Spawn</button>
+                        </div>
+
+                        <div class="vehicle-card available">
+                            <div class="vehicle-image">🚐</div>
+                            <div class="vehicle-info">
+                                <h3>Ladder 1</h3>
+                                <p>Ladder Truck</p>
+                                <div class="vehicle-stats">
+                                    <span>Fuel: 92%</span>
+                                    <span>Status: Available</span>
+                                </div>
+                            </div>
+                            <button class="spawn-btn" onclick="spawnVehicle('ladder1')">Spawn</button>
+                        </div>
+
+                        <div class="vehicle-card in-use">
+                            <div class="vehicle-image">🚑</div>
+                            <div class="vehicle-info">
+                                <h3>Rescue 1</h3>
+                                <p>Heavy Rescue</p>
+                                <div class="vehicle-stats">
+                                    <span>Fuel: 67%</span>
+                                    <span>Status: In Use</span>
+                                </div>
+                            </div>
+                            <button class="return-btn" onclick="returnVehicle('rescue1')">Return</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Tab -->
+                <div class="content-panel" id="statsPanel">
+                    <div class="panel-header">
+                        <h2>Department Statistics</h2>
+                        <select class="time-filter" onchange="updateStats(this.value)">
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👨‍🚒</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="onDutyCount">12</div>
+                                <div class="stat-label">On Duty</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">🔥</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="callsToday">8</div>
+                                <div class="stat-label">Calls Today</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">⏱️</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="responseTime">4:32</div>
+                                <div class="stat-label">Avg Response</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">🚒</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="unitsActive">5</div>
+                                <div class="stat-label">Units Active</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recent-activity">
+                        <h3>Recent Activity</h3>
+                        <div class="activity-list" id="activityList">
+                            <div class="activity-item">
+                                <div class="activity-time">14:23</div>
+                                <div class="activity-desc">Officer Smith started duty at Station 1</div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-time">14:15</div>
+                                <div class="activity-desc">Engine 1 responded to structure fire</div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-time">13:45</div>
+                                <div class="activity-desc">Equipment check completed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="tablet-footer">
+                <div class="footer-info">
+                    <span id="systemStatus">System Online</span>
+                    <span id="lastUpdate">Last update: Just now</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick HUD (Always visible when on duty) -->
+    <div id="quickHUD" class="quick-hud hidden">
+        <div class="hud-content">
+            <div class="unit-info">
+                <span class="unit-callsign" id="hudCallsign">Engine 1</span>
+                <span class="unit-status" id="hudStatus">Available</span>
+            </div>
+            <div class="duty-time" id="hudDutyTime">02:15:30</div>
+        </div>
+    </div>
+
+    <!-- Quick Controls Hint -->
+    <div id="controlsHint" class="controls-hint hidden">
+        <div class="hint-content">
+            <span class="hint-key">F6</span>
+            <span class="hint-text">Emergency Tablet</span>
+        </div>
+    </div>
+
+    <!-- Emergency Alerts (Enhanced) -->
+    <div id="emergencyAlerts" class="alerts-container">
+        <!-- Enhanced alert cards will be added here -->
+    </div>
+
+    <script src="modern-script.js"></script>
+</body>
+
+</html>
