@@ -1,6 +1,6 @@
 /* ===================================
    EMERGENCY SERVICES TABLET UI
-   Modern Design with Glassmorphism
+   Modern Design with Glassmorphism - RESPONSIVE VERSION
    =================================== */
 
    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -60,7 +60,7 @@
    }
    
    /* ===================================
-      BASE STYLES - TRANSPARENT BODY
+      BASE STYLES - KOMPLETT TRANSPARENT
       =================================== */
    
    * {
@@ -69,28 +69,41 @@
        box-sizing: border-box;
    }
    
-   body {
-       font-family: var(--font-family);
-       /* WICHTIG: TRANSPARENTER HINTERGRUND - NICHT SCHWARZ! */
+   html {
+       /* WICHTIG: HTML komplett transparent */
        background: transparent !important;
-       color: var(--text-primary);
-       overflow: hidden;
-       height: 100vh;
-       user-select: none;
-       
-       /* Sicherstellen dass der Body wirklich transparent ist */
        background-color: transparent !important;
-       background-image: none !important;
+       overflow: hidden;
+       width: 100vw;
+       height: 100vh;
    }
    
-   html {
-       /* Auch HTML transparent machen */
+   body {
+       font-family: var(--font-family);
+       /* WICHTIG: TRANSPARENTER HINTERGRUND - KEIN SCHWARZ! */
+       background: transparent !important;
+       background-color: transparent !important;
+       color: var(--text-primary);
+       overflow: hidden;
+       width: 100vw;
+       height: 100vh;
+       user-select: none;
+       margin: 0;
+       padding: 0;
+       
+       /* Sicherstellen dass KEIN Hintergrund da ist */
+       background-image: none !important;
+       backdrop-filter: none !important;
+   }
+   
+   /* Alle Container auch transparent */
+   #app, #root, .app-container {
        background: transparent !important;
        background-color: transparent !important;
    }
    
    /* ===================================
-      TABLET CONTAINER - KLEINES DESIGN
+      TABLET CONTAINER - RESPONSIVE DESIGN
       =================================== */
    
    .tablet-container {
@@ -99,9 +112,13 @@
        left: 50%;
        transform: translate(-50%, -50%);
        
-       /* KLEINES TABLET - NICHT FULLSCREEN */
-       width: 600px;
-       height: 450px;
+       /* RESPONSIVE GRÖSSĒ - PASST SICH AN AUFLÖSUNG AN */
+       width: min(85vw, 1000px);
+       height: min(80vh, 700px);
+       max-width: 1200px;
+       max-height: 800px;
+       min-width: 400px;
+       min-height: 300px;
        
        /* Standardmäßig versteckt - ABER NICHT ZU AGGRESSIV */
        display: none;
@@ -134,7 +151,7 @@
        pointer-events: none;
    }
    
-   /* Tablet Frame - jetzt kleiner */
+   /* Tablet Frame - jetzt responsive */
    .tablet-frame {
        width: 100%;
        height: 100%;
@@ -818,7 +835,7 @@
    }
    
    /* ===================================
-      ANIMATIONS - KLEINES TABLET
+      ANIMATIONS - RESPONSIVE TABLET
       =================================== */
    
    @keyframes slideInScale {
@@ -923,19 +940,34 @@
    }
    
    /* ===================================
-      RESPONSIVE DESIGN
+      RESPONSIVE DESIGN - VERBESSERT
       =================================== */
+   
+   @media (max-width: 1600px) {
+       .tablet-container {
+           width: min(90vw, 900px);
+           height: min(85vh, 650px);
+       }
+   }
+   
+   @media (max-width: 1200px) {
+       .tablet-container {
+           width: min(92vw, 800px);
+           height: min(88vh, 600px);
+       }
+   }
    
    @media (max-width: 768px) {
        .tablet-container {
            width: 95vw;
-           height: 80vh;
-           max-width: 500px;
-           max-height: 600px;
+           height: 85vh;
+           max-width: none;
+           max-height: none;
        }
        
        .tab-navigation {
            flex-wrap: wrap;
+           gap: var(--spacing-xs);
        }
        
        .tab-btn {
@@ -962,7 +994,10 @@
    @media (max-width: 480px) {
        .tablet-container {
            width: 98vw;
-           height: 85vh;
+           height: 90vh;
+           top: 5vh;
+           left: 1vw;
+           transform: none;
        }
        
        .tablet-header {
@@ -979,6 +1014,14 @@
        
        .stats-grid {
            grid-template-columns: 1fr;
+       }
+   }
+   
+   /* Ultra-wide screens */
+   @media (min-width: 2560px) {
+       .tablet-container {
+           width: min(70vw, 1400px);
+           height: min(75vh, 900px);
        }
    }
    

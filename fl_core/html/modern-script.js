@@ -1,6 +1,6 @@
 // ===================================
 // EMERGENCY SERVICES TABLET UI
-// Modern JavaScript Interface
+// Modern JavaScript Interface - RESPONSIVE VERSION
 // ===================================
 
 let currentData = null;
@@ -17,7 +17,7 @@ let activeTab = "duty";
 (function () {
   console.log("Emergency Services UI - Immediate transparent setup");
 
-  // HTML und Body sofort transparent machen - AGGRESSIV
+  // HTML und Body sofort transparent machen - ULTRA AGGRESSIV
   function makeTransparent() {
     const elementsToMakeTransparent = [
       document.documentElement,
@@ -32,7 +32,22 @@ let activeTab = "duty";
         element.style.backgroundColor = "transparent";
         element.style.backgroundImage = "none";
         element.style.backdropFilter = "none";
+        element.style.margin = "0";
+        element.style.padding = "0";
+        element.style.overflow = "hidden";
+        element.style.width = "100vw";
+        element.style.height = "100vh";
       }
+    });
+
+    // Auch alle möglichen Container
+    const containers = document.querySelectorAll(
+      "div, body, html, #app, #root, .app-container"
+    );
+    containers.forEach((container) => {
+      container.style.background = "transparent";
+      container.style.backgroundColor = "transparent";
+      container.style.backgroundImage = "none";
     });
   }
 
@@ -46,10 +61,10 @@ let activeTab = "duty";
     makeTransparent();
   }
 
-  // NUR BASIS CSS - SEHR MINIMAL
+  // ULTRA AGGRESSIVES CSS - GARANTIERT TRANSPARENT
   const style = document.createElement("style");
   style.textContent = `
-        html, body, * {
+        *, *::before, *::after {
             background: transparent !important;
             background-color: transparent !important;
             background-image: none !important;
@@ -57,30 +72,52 @@ let activeTab = "duty";
         
         html, body {
             backdrop-filter: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            width: 100vw !important;
+            height: 100vh !important;
         }
         
         #tabletContainer { 
-            display: none;
-            visibility: hidden;
-            opacity: 0;
-            pointer-events: none;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
         #quickHUD { 
-            display: none;
-            visibility: hidden;
-            opacity: 0;
-            pointer-events: none;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
         #controlsHint {
-            display: none;
-            visibility: hidden;
-            opacity: 0;
-            pointer-events: none;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        
+        /* Alle möglichen Container transparent */
+        div:not(.tablet-frame):not(.tablet-header):not(.tablet-content):not(.content-panel) {
+            background: transparent !important;
+            background-color: transparent !important;
         }
     `;
   document.head.appendChild(style);
 
-  console.log("Aggressive transparency applied to all elements");
+  // Kontinuierliche Überwachung für die ersten Sekunden
+  const watchdog = setInterval(() => {
+    makeTransparent();
+  }, 100);
+
+  // Nach 5 Sekunden stoppen
+  setTimeout(() => {
+    clearInterval(watchdog);
+    console.log("Transparency watchdog stopped");
+  }, 5000);
+
+  console.log("Ultra-aggressive transparency applied to all elements");
 })();
 
 // ===================================
@@ -90,11 +127,42 @@ let activeTab = "duty";
 document.addEventListener("DOMContentLoaded", function () {
   console.log("Emergency Services Tablet UI loaded");
 
-  // SOFORT Body und HTML transparent machen falls nicht schon geschehen
-  document.documentElement.style.background = "transparent";
-  document.documentElement.style.backgroundColor = "transparent";
-  document.body.style.background = "transparent";
-  document.body.style.backgroundColor = "transparent";
+  // ULTRA AGGRESSIV: Body und HTML transparent machen
+  function forceTransparency() {
+    document.documentElement.style.background = "transparent";
+    document.documentElement.style.backgroundColor = "transparent";
+    document.documentElement.style.backgroundImage = "none";
+    document.documentElement.style.margin = "0";
+    document.documentElement.style.padding = "0";
+    document.documentElement.style.overflow = "hidden";
+
+    document.body.style.background = "transparent";
+    document.body.style.backgroundColor = "transparent";
+    document.body.style.backgroundImage = "none";
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+    document.body.style.overflow = "hidden";
+    document.body.style.width = "100vw";
+    document.body.style.height = "100vh";
+
+    // Alle möglichen Container auch transparent machen
+    const allDivs = document.querySelectorAll(
+      "div:not(.tablet-frame):not(.tablet-header):not(.content-panel)"
+    );
+    allDivs.forEach((div) => {
+      if (
+        !div.classList.contains("tablet-frame") &&
+        !div.classList.contains("tablet-header") &&
+        !div.classList.contains("content-panel")
+      ) {
+        div.style.background = "transparent";
+        div.style.backgroundColor = "transparent";
+      }
+    });
+  }
+
+  // Sofort ausführen
+  forceTransparency();
 
   // WICHTIG: UI beim Start komplett verstecken mit display: none
   const tablet = document.getElementById("tabletContainer");
@@ -143,6 +211,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Initialize mock data
   initializeMockData();
+
+  // Nochmal Transparenz forcieren nach dem Setup
+  setTimeout(forceTransparency, 100);
+  setTimeout(forceTransparency, 500);
 
   console.log("Emergency Services UI fully loaded and hidden");
 
@@ -204,6 +276,9 @@ window.addEventListener("message", function (event) {
     case "updateVehicles":
       updateVehicleList(data.data);
       break;
+    case "getWindowInfo":
+      reportWindowInfo();
+      break;
     default:
       break;
   }
@@ -244,10 +319,58 @@ function showTablet(data) {
     updateDutyDisplay(data.dutyStatus);
   }
 
-  // Show the tablet - FORCE SICHTBAR MACHEN
+  // Show the tablet - RESPONSIVE UND FORCE SICHTBAR MACHEN
   const tablet = document.getElementById("tabletContainer");
 
   if (tablet) {
+    // RESPONSIVE GROESSE BERECHNEN
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let width, height;
+
+    // Gleiche responsive Logik wie bei forceShowTablet
+    if (vw >= 2560) {
+      width = Math.min(vw * 0.7, 1400);
+      height = Math.min(vh * 0.75, 900);
+    } else if (vw >= 1600) {
+      width = Math.min(vw * 0.85, 1000);
+      height = Math.min(vh * 0.8, 700);
+    } else if (vw >= 1200) {
+      width = Math.min(vw * 0.9, 900);
+      height = Math.min(vh * 0.85, 650);
+    } else if (vw >= 992) {
+      width = Math.min(vw * 0.92, 800);
+      height = Math.min(vh * 0.88, 600);
+    } else if (vw >= 768) {
+      width = vw * 0.95;
+      height = vh * 0.85;
+    } else if (vw >= 576) {
+      width = vw * 0.98;
+      height = vh * 0.9;
+    } else {
+      width = vw * 0.98;
+      height = vh * 0.9;
+    }
+
+    // Constraints
+    width = Math.max(400, Math.min(width, 1400));
+    height = Math.max(300, Math.min(height, 900));
+
+    // Positionierung
+    if (vw <= 575) {
+      tablet.style.top = "5vh";
+      tablet.style.left = "1vw";
+      tablet.style.transform = "none";
+    } else {
+      tablet.style.top = "50%";
+      tablet.style.left = "50%";
+      tablet.style.transform = "translate(-50%, -50%)";
+    }
+
+    tablet.style.width = width + "px";
+    tablet.style.height = height + "px";
+
     // ALLES FORCIERT SICHTBAR MACHEN
     tablet.style.display = "block";
     tablet.style.visibility = "visible";
@@ -255,11 +378,19 @@ function showTablet(data) {
     tablet.style.pointerEvents = "all";
     tablet.style.zIndex = "1000";
 
+    // WICHTIG: Transparenter Hintergrund
+    document.documentElement.style.background = "transparent";
+    document.documentElement.style.backgroundColor = "transparent";
+    document.body.style.background = "transparent";
+    document.body.style.backgroundColor = "transparent";
+
     // CSS Klassen
     tablet.classList.remove("hidden");
     tablet.classList.add("show");
 
-    console.log("Tablet styles set - should be visible now");
+    console.log(
+      `Tablet shown - Size: ${width}x${height} (Screen: ${vw}x${vh})`
+    );
     console.log("Tablet display:", tablet.style.display);
     console.log("Tablet visibility:", tablet.style.visibility);
     console.log("Tablet opacity:", tablet.style.opacity);
@@ -573,32 +704,51 @@ function forceShowTablet() {
   const tablet = document.getElementById("tabletContainer");
 
   if (tablet) {
-    // RESPONSIVE GROESSE BERECHNEN
+    // RESPONSIVE GROESSE BERECHNEN - VERBESSERT
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
     let width, height;
 
-    if (vw >= 1920) {
-      width = Math.min(vw * 0.8, 1200);
-      height = Math.min(vh * 0.8, 800);
-    } else if (vw >= 1200) {
+    // Ultra-wide screens (2560+)
+    if (vw >= 2560) {
+      width = Math.min(vw * 0.7, 1400);
+      height = Math.min(vh * 0.75, 900);
+    }
+    // Large screens (1600-2559)
+    else if (vw >= 1600) {
       width = Math.min(vw * 0.85, 1000);
-      height = Math.min(vh * 0.85, 700);
-    } else if (vw >= 992) {
+      height = Math.min(vh * 0.8, 700);
+    }
+    // Medium-large screens (1200-1599)
+    else if (vw >= 1200) {
       width = Math.min(vw * 0.9, 900);
       height = Math.min(vh * 0.85, 650);
-    } else if (vw >= 768) {
-      width = vw * 0.95;
-      height = vh * 0.9;
-    } else if (vw >= 576) {
-      width = vw * 0.98;
-      height = vh * 0.95;
-    } else {
-      // Mobile: Fullscreen
-      width = vw;
-      height = vh;
     }
+    // Medium screens (992-1199)
+    else if (vw >= 992) {
+      width = Math.min(vw * 0.92, 800);
+      height = Math.min(vh * 0.88, 600);
+    }
+    // Tablets (768-991)
+    else if (vw >= 768) {
+      width = vw * 0.95;
+      height = vh * 0.85;
+    }
+    // Small tablets (576-767)
+    else if (vw >= 576) {
+      width = vw * 0.98;
+      height = vh * 0.9;
+    }
+    // Mobile phones (below 576)
+    else {
+      width = vw * 0.98;
+      height = vh * 0.9;
+    }
+
+    // Minimum and maximum constraints
+    width = Math.max(400, Math.min(width, 1400));
+    height = Math.max(300, Math.min(height, 900));
 
     // ALLE versteckenden Styles entfernen
     tablet.style.display = "block";
@@ -608,10 +758,10 @@ function forceShowTablet() {
     tablet.style.zIndex = "9999";
     tablet.style.position = "fixed";
 
-    // Mobile: Fullscreen, Desktop: Centered
+    // Mobile: Andere Positionierung, Desktop: Centered
     if (vw <= 575) {
-      tablet.style.top = "0";
-      tablet.style.left = "0";
+      tablet.style.top = "5vh";
+      tablet.style.left = "1vw";
       tablet.style.transform = "none";
     } else {
       tablet.style.top = "50%";
@@ -622,7 +772,13 @@ function forceShowTablet() {
     tablet.style.width = width + "px";
     tablet.style.height = height + "px";
 
-    // KEIN schwarzer Hintergrund - nur das Tablet-Frame
+    // WICHTIG: Sicherstellen dass KEIN schwarzer Hintergrund da ist
+    document.documentElement.style.background = "transparent";
+    document.documentElement.style.backgroundColor = "transparent";
+    document.body.style.background = "transparent";
+    document.body.style.backgroundColor = "transparent";
+
+    // Auch das Tablet selbst transparent
     tablet.style.background = "transparent";
     tablet.style.backgroundColor = "transparent";
 
@@ -1000,6 +1156,104 @@ function initializeMockData() {
   ];
 
   mockActivities.forEach((activity) => addActivityItem(activity));
+}
+
+// ===================================
+// DEBUG FUNCTIONS
+// ===================================
+
+// Report current window information
+function reportWindowInfo() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const devicePixelRatio = window.devicePixelRatio || 1;
+
+  const info = {
+    viewport: {
+      width: vw,
+      height: vh,
+      ratio: `${vw}x${vh}`,
+    },
+    screen: {
+      width: screen.width,
+      height: screen.height,
+      availWidth: screen.availWidth,
+      availHeight: screen.availHeight,
+      ratio: `${screen.width}x${screen.height}`,
+    },
+    device: {
+      pixelRatio: devicePixelRatio,
+      colorDepth: screen.colorDepth,
+      orientation: screen.orientation ? screen.orientation.type : "unknown",
+    },
+    responsive: {
+      category: getResponsiveCategory(vw),
+      recommendedTabletSize: getRecommendedTabletSize(vw, vh),
+    },
+  };
+
+  console.log("=== WINDOW INFO ===");
+  console.log("Viewport:", info.viewport);
+  console.log("Screen:", info.screen);
+  console.log("Device:", info.device);
+  console.log("Responsive:", info.responsive);
+  console.log("==================");
+
+  // Send back to client
+  fetch(`https://${GetParentResourceName()}/windowInfo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(info),
+  }).catch(() => {
+    // Ignore fetch errors in debug
+  });
+}
+
+// Get responsive category for current viewport
+function getResponsiveCategory(width) {
+  if (width >= 2560) return "Ultra-wide (2560+)";
+  if (width >= 1600) return "Large (1600-2559)";
+  if (width >= 1200) return "Medium-large (1200-1599)";
+  if (width >= 992) return "Medium (992-1199)";
+  if (width >= 768) return "Tablet (768-991)";
+  if (width >= 576) return "Small tablet (576-767)";
+  return "Mobile (< 576)";
+}
+
+// Get recommended tablet size for viewport
+function getRecommendedTabletSize(vw, vh) {
+  let width, height;
+
+  if (vw >= 2560) {
+    width = Math.min(vw * 0.7, 1400);
+    height = Math.min(vh * 0.75, 900);
+  } else if (vw >= 1600) {
+    width = Math.min(vw * 0.85, 1000);
+    height = Math.min(vh * 0.8, 700);
+  } else if (vw >= 1200) {
+    width = Math.min(vw * 0.9, 900);
+    height = Math.min(vh * 0.85, 650);
+  } else if (vw >= 992) {
+    width = Math.min(vw * 0.92, 800);
+    height = Math.min(vh * 0.88, 600);
+  } else if (vw >= 768) {
+    width = vw * 0.95;
+    height = vh * 0.85;
+  } else {
+    width = vw * 0.98;
+    height = vh * 0.9;
+  }
+
+  width = Math.max(400, Math.min(width, 1400));
+  height = Math.max(300, Math.min(height, 900));
+
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+    percentage: `${Math.round((width / vw) * 100)}% x ${Math.round(
+      (height / vh) * 100
+    )}%`,
+  };
 }
 
 // ===================================

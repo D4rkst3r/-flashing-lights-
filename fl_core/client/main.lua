@@ -467,7 +467,7 @@ function ShowDutyUI(stationId)
         return
     end
 
-    FL.Debug('Setting NUI focus and showing tablet')
+    FL.Debug('Setting NUI focus and showing responsive tablet')
 
     SetNuiFocus(true, true)
     SetTabletOpen(true)
@@ -476,7 +476,7 @@ function ShowDutyUI(stationId)
         station = station,
         player = {
             name = (PlayerData.charinfo and (PlayerData.charinfo.firstname .. ' ' .. PlayerData.charinfo.lastname)) or
-            'Unknown Officer',
+                'Unknown Officer',
             rank = PlayerData.job.grade and PlayerData.job.grade.label or 'Unknown Rank',
             badge = PlayerData.job.grade and PlayerData.job.grade.level or 1,
             unit = GetPlayerUnit()
@@ -485,15 +485,16 @@ function ShowDutyUI(stationId)
         dutyStatus = PlayerData.job.onduty
     }
 
-    FL.Debug('Sending showTablet message with data: ' .. json.encode(uiData))
+    FL.Debug('Sending showTablet message with responsive data: ' .. json.encode(uiData))
 
     SendNUIMessage({
         action = 'showTablet',
         data = uiData
     })
 
-    -- Show help text
-    QBCore.Functions.Notify('Press F6 or ESC to close tablet', 'primary', 3000)
+    -- Show help text with more info
+    QBCore.Functions.Notify('Emergency Tablet opened - Press F6 or ESC to close • Responsive design active', 'primary',
+        4000)
 end
 
 -- Hide modern duty UI
@@ -590,6 +591,20 @@ end)
 
 RegisterNUICallback('selectEquipment', function(data, cb)
     TriggerEvent('fl_core:selectEquipment', data.equipmentId)
+    cb('ok')
+end)
+
+RegisterNUICallback('windowInfo', function(data, cb)
+    if Config.Debug then
+        FL.Debug('Window Info received:')
+        FL.Debug('Viewport: ' .. data.viewport.width .. 'x' .. data.viewport.height)
+        FL.Debug('Screen: ' .. data.screen.width .. 'x' .. data.screen.height)
+        FL.Debug('Category: ' .. data.responsive.category)
+        FL.Debug('Recommended tablet size: ' ..
+        data.responsive.recommendedTabletSize.width .. 'x' .. data.responsive.recommendedTabletSize.height)
+
+        QBCore.Functions.Notify('Window info logged to console - Category: ' .. data.responsive.category, 'primary', 5000)
+    end
     cb('ok')
 end)
 
@@ -759,6 +774,58 @@ RegisterCommand('fl_playerdata', function()
     else
         print('^1No character info found^7')
     end
+end, false)
+
+-- Test responsive design at different sizes
+RegisterCommand('fl_testresponsive', function()
+    if not Config.Debug then return end
+
+    FL.Debug('Testing responsive tablet design...')
+
+    if not PlayerData.job then
+        PlayerData.job = {
+            name = 'fire',
+            grade = { label = 'Test Firefighter', level = 1 },
+            onduty = false
+        }
+        PlayerData.charinfo = {
+            firstname = 'Responsive',
+            lastname = 'Test'
+        }
+    end
+
+    -- Send responsive test message
+    SendNUIMessage({
+        action = 'showTablet',
+        data = {
+            station = { label = 'Responsive Test Station', job = 'fire', id = 'responsive_test' },
+            player = {
+                name = 'Responsive Test User',
+                rank = 'Responsive Test Rank',
+                badge = 777,
+                unit = 'Responsive Unit'
+            },
+            job = 'fire',
+            dutyStatus = false
+        }
+    })
+
+    SetNuiFocus(true, true)
+    SetTabletOpen(true)
+
+    QBCore.Functions.Notify('Responsive tablet test active - Try resizing your window!', 'success', 6000)
+end, false)
+
+-- Get current window info
+RegisterCommand('fl_windowinfo', function()
+    if not Config.Debug then return end
+
+    -- This would need to be implemented via NUI callback to get actual window size
+    SendNUIMessage({
+        action = 'getWindowInfo'
+    })
+
+    QBCore.Functions.Notify('Window info requested - Check F8 console', 'primary')
 end, false)
 
 FL.Debug('Flashing Lights Core Client loaded successfully!')
