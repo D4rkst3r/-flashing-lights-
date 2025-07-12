@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FL Emergency Services</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Duty Start UI -->
+    <div id="dutyUI" class="ui-container hidden">
+        <div class="duty-modal">
+            <div class="modal-header">
+                <i class="fas fa-id-badge"></i>
+                <h2>Start Duty</h2>
+                <button class="close-btn" onclick="closeUI()">&times;</button>
+            </div>
+
+            <div class="modal-content">
+                <div class="station-info">
+                    <div class="station-badge">
+                        <i id="serviceBadge" class="fas fa-fire"></i>
+                    </div>
+                    <div class="station-details">
+                        <h3 id="stationName">Fire Station 1</h3>
+                        <p id="serviceName">Fire Department</p>
+                    </div>
+                </div>
+
+                <div class="duty-actions">
+                    <button id="startDutyBtn" class="btn btn-primary">
+                        <i class="fas fa-play"></i>
+                        Start Duty
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeUI()">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                </div>
+
+                <div class="duty-info">
+                    <p class="info-text">
+                        <i class="fas fa-info-circle"></i>
+                        Starting duty will automatically equip you with the appropriate uniform and equipment.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MDT/Tablet UI -->
+    <div id="mdtUI" class="ui-container hidden">
+        <div class="tablet-container">
+            <div class="tablet-screen">
+                <!-- Tablet Header -->
+                <div class="tablet-header">
+                    <div class="header-left">
+                        <i id="mdtServiceIcon" class="fas fa-fire"></i>
+                        <span id="mdtServiceName">Fire Department</span>
+                    </div>
+                    <div class="header-center">
+                        <span class="time" id="currentTime">00:00:00</span>
+                    </div>
+                    <div class="header-right">
+                        <button class="tablet-btn" onclick="closeUI()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MDT Navigation -->
+                <div class="mdt-nav">
+                    <button class="nav-btn active" data-tab="calls">
+                        <i class="fas fa-phone"></i>
+                        Active Calls
+                    </button>
+                    <button class="nav-btn" data-tab="units">
+                        <i class="fas fa-users"></i>
+                        Units
+                    </button>
+                    <button class="nav-btn" data-tab="map">
+                        <i class="fas fa-map"></i>
+                        Map
+                    </button>
+                    <button class="nav-btn" data-tab="reports">
+                        <i class="fas fa-file-alt"></i>
+                        Reports
+                    </button>
+                </div>
+
+                <!-- MDT Content -->
+                <div class="mdt-content">
+                    <!-- Active Calls Tab -->
+                    <div id="callsTab" class="tab-content active">
+                        <div class="content-header">
+                            <h3>Active Emergency Calls</h3>
+                            <div class="call-stats">
+                                <span class="stat high-priority">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span id="highPriorityCalls">0</span> High
+                                </span>
+                                <span class="stat medium-priority">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <span id="mediumPriorityCalls">0</span> Medium
+                                </span>
+                                <span class="stat low-priority">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span id="lowPriorityCalls">0</span> Low
+                                </span>
+                            </div>
+                        </div>
+
+                        <div id="callsList" class="calls-list">
+                            <!-- Calls will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Units Tab -->
+                    <div id="unitsTab" class="tab-content">
+                        <div class="content-header">
+                            <h3>Active Units</h3>
+                        </div>
+                        <div id="unitsList" class="units-list">
+                            <!-- Units will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Map Tab -->
+                    <div id="mapTab" class="tab-content">
+                        <div class="content-header">
+                            <h3>Service Area Map</h3>
+                        </div>
+                        <div class="map-placeholder">
+                            <i class="fas fa-map"></i>
+                            <p>Map functionality coming soon</p>
+                        </div>
+                    </div>
+
+                    <!-- Reports Tab -->
+                    <div id="reportsTab" class="tab-content">
+                        <div class="content-header">
+                            <h3>Incident Reports</h3>
+                        </div>
+                        <div class="reports-placeholder">
+                            <i class="fas fa-file-alt"></i>
+                            <p>No reports available</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification System -->
+    <div id="notifications" class="notifications-container">
+        <!-- Notifications will be added here dynamically -->
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+
+</html>
