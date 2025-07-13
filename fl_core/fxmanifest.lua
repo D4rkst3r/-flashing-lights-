@@ -2,28 +2,32 @@ fx_version 'cerulean'
 game 'gta5'
 
 author 'FlashingLights Emergency Services'
-description 'Core module for Emergency Services System - FIXED VERSION'
-version '1.1.0'
+description 'Core module for Emergency Services System - ENHANCED VERSION'
+version '2.0.0'
 
--- QBCore dependency
+-- Dependencies
 dependency 'qb-core'
+dependency 'qtarget' -- or 'ox_target' or 'qb-target'
 
--- Shared scripts (both client and server) - loaded first
+-- Shared scripts
 shared_scripts {
     'config.lua',
     'shared/*.lua'
 }
 
--- Server scripts - loaded after shared (FIXED Ladereihenfolge)
+-- Server scripts
 server_scripts {
-    '@oxmysql/lib/MySQL.lua', -- QBCore 1.3.0 uses oxmysql
-    'server/main.lua',        -- Main server script with fixed NUI handling
-    -- database.lua entfernt da redundant zu main.lua
+    '@oxmysql/lib/MySQL.lua',
+    'server/main.lua',
+    'server/discord.lua', -- NEW
+    'server/vehicles.lua' -- NEW
 }
 
--- Client scripts (FIXED - Main enthält jetzt alle NUI Callbacks)
+-- Client scripts
 client_scripts {
-    'client/main.lua' -- Contains ALL client logic including NUI callbacks
+    'client/main.lua',
+    'client/qtarget.lua', -- NEW
+    'client/vehicles.lua' -- NEW
 }
 
 -- UI files
@@ -34,10 +38,9 @@ files {
     'html/css/*.css',
     'html/js/*.js',
     'html/img/*.png',
-    'html/img/*.jpg'
+    'html/img/*.jpg',
+    'html/sounds/*.wav', -- NEW
+    'html/sounds/*.mp3'  -- NEW
 }
-
--- Ensure this resource starts after qb-core
-dependency 'qb-core'
 
 lua54 'yes'

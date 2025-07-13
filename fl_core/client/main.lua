@@ -58,28 +58,20 @@ CreateThread(function()
         Wait(200)
     end
 
-    -- Initialize player data with validation
     FL.Client.playerPed = GetSafePlayerPed()
     FL.Client.playerSource = GetPlayerServerId(PlayerId())
 
-    FL.Debug('🆔 Player Source ID: ' .. FL.Client.playerSource)
-
-    -- Wait for valid player ped
     while FL.Client.playerPed == 0 do
         Wait(500)
         FL.Client.playerPed = GetSafePlayerPed()
     end
 
-    -- Request service info from server
     TriggerServerEvent('fl_core:getServiceInfo')
-
-    -- Create station blips
     CreateStationBlips()
 
-    -- Start main loop
-    MainLoop()
+    -- MainLoop() -- REMOVE THIS LINE
 
-    FL.Debug('Client script initialized with QBCore integration + Multi-Unit Support')
+    FL.Debug('Client script initialized with QBCore integration + qtarget')
 end)
 
 -- Update player ped regularly to handle respawns
@@ -536,126 +528,6 @@ RegisterNetEvent('QBCore:Client:SetDuty', function(duty)
     end
 end)
 
--- ====================================================================
--- MARKER SYSTEM (DEINE VOLLSTÄNDIGE DEBUG VERSION)
--- ====================================================================
-
--- Main loop for marker detection and drawing (KOMPLETT NEUE DEBUG VERSION)
-function MainLoop()
-    CreateThread(function()
-        while true do
-            local sleep = 1000
-
-            FL.Debug('🔄 MainLoop iteration starting...')
-
-            -- Step 1: Validate player ped first
-            if not IsValidEntity(FL.Client.playerPed) then
-                FL.Debug('❌ Invalid player ped, attempting to get new one...')
-                FL.Client.playerPed = GetSafePlayerPed()
-                Wait(500)
-            else
-                -- Step 2: Get player coordinates
-                local playerCoords = GetEntityCoords(FL.Client.playerPed)
-                FL.Debug('🏃 Player coords: ' ..
-                    string.format("%.2f, %.2f, %.2f", playerCoords.x, playerCoords.y, playerCoords.z))
-
-                -- NOTFALL-TEST: Zeichne immer einen orangenen Marker über dem Spieler
-                FL.Debug('🧪 Drawing test marker above player...')
-                DrawMarker(2, playerCoords.x, playerCoords.y, playerCoords.z + 2, 0.0, 0.0, 0.0, 0.0, 180.0, 0.0, 2.0,
-                    2.0, 2.0, 255, 128, 0, 50, false, true, 2, nil, nil, false)
-
-                -- Step 3: Check if player has service
-                if FL.Client.serviceInfo then
-                    FL.Debug('👤 Service: ' ..
-                        FL.Client.serviceInfo.service .. ', OnDuty: ' .. tostring(FL.Client.serviceInfo.isOnDuty))
-
-                    -- Step 4: Loop through stations
-                    for stationId, stationData in pairs(Config.Stations) do
-                        FL.Debug('🏢 Checking station: ' .. stationId .. ', Service: ' .. stationData.service)
-
-                        -- Only show markers for player's service
-                        if stationData.service == FL.Client.serviceInfo.service then
-                            FL.Debug('✅ Service match for: ' .. stationId)
-
-                            -- Step 5: Calculate distance
-                            local distance = FL.Functions.GetDistance(playerCoords, stationData.coords)
-                            FL.Debug('📏 Distance to station: ' .. string.format("%.2f", distance))
-
-                            if distance < 50.0 then
-                                sleep = 5
-                                FL.Debug('📍 Within 50m range of station')
-
-                                -- Step 6: Check duty marker
-                                if stationData.duty_marker then
-                                    FL.Debug('🎯 Duty marker exists at: ' .. string.format("%.2f, %.2f, %.2f",
-                                        stationData.duty_marker.coords.x,
-                                        stationData.duty_marker.coords.y,
-                                        stationData.duty_marker.coords.z))
-
-                                    local markerDistance = FL.Functions.GetDistance(playerCoords,
-                                        stationData.duty_marker.coords)
-                                    FL.Debug('📏 Distance to marker: ' .. string.format("%.2f", markerDistance))
-
-                                    if markerDistance < 20.0 then
-                                        FL.Debug('🔥 About to draw station marker...')
-
-                                        -- Station Marker (roter Zylinder)
-                                        DrawMarker(
-                                            1,                                -- type (cylinder)
-                                            stationData.duty_marker.coords.x, -- posX
-                                            stationData.duty_marker.coords.y, -- posY
-                                            stationData.duty_marker.coords.z, -- posZ
-                                            0.0, 0.0, 0.0,                    -- dirX, dirY, dirZ
-                                            0.0, 0.0, 0.0,                    -- rotX, rotY, rotZ
-                                            2.0, 2.0, 1.0,                    -- scaleX, scaleY, scaleZ
-                                            255, 0, 0, 200,                   -- red, green, blue, alpha (bright red)
-                                            false,                            -- bobUpAndDown
-                                            true,                             -- faceCamera
-                                            2,                                -- rotationOrder
-                                            nil,                              -- rotate
-                                            nil,                              -- textureDict
-                                            nil,                              -- textureName
-                                            false                             -- drawOnEnts
-                                        )
-
-                                        FL.Debug('✅ Station marker drawn successfully')
-
-                                        if markerDistance < 2.0 then
-                                            -- Show interaction text based on duty status
-                                            local text = FL.Client.serviceInfo.isOnDuty and '~r~[E]~w~ End Duty' or
-                                                '~g~[E]~w~ Start Duty'
-                                            ShowHelpText(text)
-
-                                            -- Handle interaction - now uses QBCore duty system
-                                            if IsControlJustPressed(0, 38) then -- E key
-                                                FL.Debug('🔑 E key pressed - toggling duty')
-                                                TriggerServerEvent('fl_core:toggleDuty', stationId)
-                                            end
-                                        end
-                                    else
-                                        FL.Debug('❌ Too far from marker: ' .. string.format("%.2f", markerDistance))
-                                    end
-                                else
-                                    FL.Debug('❌ No duty marker defined for station: ' .. stationId)
-                                end
-                            else
-                                FL.Debug('❌ Too far from station: ' .. string.format("%.2f", distance))
-                            end
-                        else
-                            FL.Debug('❌ Service mismatch: ' ..
-                                stationData.service .. ' != ' .. FL.Client.serviceInfo.service)
-                        end
-                    end
-                else
-                    FL.Debug('❌ No service info available')
-                end
-            end
-
-            FL.Debug('🔄 MainLoop iteration finished, sleeping: ' .. sleep .. 'ms')
-            Wait(sleep)
-        end
-    end)
-end
 
 -- ====================================================================
 -- UNIFORM SYSTEM (NUCLEAR NULL-SAFETY - ALL FIXED)

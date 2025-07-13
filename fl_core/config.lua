@@ -344,3 +344,71 @@ Config.MDT = {
         name = 'base'
     }
 }
+-- UI Configuration
+Config.UseAdvancedUI = true  -- Use UI menus instead of direct toggle
+Config.TargetSystem = 'auto' -- 'qtarget', 'ox_target', 'qb-target', or 'auto'
+
+-- Add icons to existing service config
+Config.EmergencyServices = {
+    ['fire'] = {
+        label = 'Fire Department',
+        shortname = 'FD',
+        color = '#e74c3c',
+        blip = 436,
+        icon = 'fas fa-fire', -- NEW
+        uniform_type = 'fire',
+        vehicles = {          -- NEW
+            'firetruk',
+            'ambulance'
+        }
+    },
+    ['police'] = {
+        label = 'Police Department',
+        shortname = 'PD',
+        color = '#3498db',
+        blip = 60,
+        icon = 'fas fa-shield-alt', -- NEW
+        uniform_type = 'police',
+        vehicles = {                -- NEW
+            'police',
+            'police2',
+            'police3',
+            'policeb'
+        }
+    },
+    ['ems'] = {
+        label = 'Emergency Medical Services',
+        shortname = 'EMS',
+        color = '#2ecc71',
+        blip = 61,
+        icon = 'fas fa-ambulance', -- NEW
+        uniform_type = 'ems',
+        vehicles = {               -- NEW
+            'ambulance',
+            'lguard'
+        }
+    }
+}
+
+-- Discord Configuration (NEW SECTION)
+Config.Discord = {
+    enabled = true,
+    webhooks = {
+        fire = '',                                      -- YOUR_FIRE_WEBHOOK_URL
+        police = '',                                    -- YOUR_POLICE_WEBHOOK_URL
+        ems = '',                                       -- YOUR_EMS_WEBHOOK_URL
+        admin = '',                                     -- YOUR_ADMIN_WEBHOOK_URL
+        duty = '',                                      -- YOUR_DUTY_WEBHOOK_URL
+        emergency = ''                                  -- YOUR_EMERGENCY_WEBHOOK_URL
+    },
+    server_logo = 'https://i.imgur.com/your-logo.png',  -- Optional
+    footer_icon = 'https://i.imgur.com/your-footer.png' -- Optional
+}
+
+-- Sound Configuration (NEW SECTION)
+Config.Sounds = {
+    enabled = true,
+    emergency_alert = 'sounds/emergency_alert.wav',
+    dispatch_tone = 'sounds/dispatch_tone.wav',
+    call_complete = 'sounds/call_complete.wav'
+}
