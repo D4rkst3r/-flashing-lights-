@@ -1,10 +1,9 @@
 // ====================================================================
 // FLASHING LIGHTS EMERGENCY SERVICES - FIXED UI JAVASCRIPT
 // Hauptprobleme behoben:
-// 1. Button-Status wird jetzt korrekt basierend auf Call-Status aktualisiert
-// 2. Bessere Response-Handling für NUI Callbacks
-// 3. Detailliertes Debug-Logging für besseres Troubleshooting
-// 4. Force-Refresh-Mechanismus für UI-Sync
+// 1. NUI Callbacks verwenden jetzt korrekte Resource-Referenz
+// 2. Fetch-URLs verwenden GetParentResourceName() korrekt
+// 3. Bessere Error-Handling für Network-Requests
 // ====================================================================
 
 // Global state
@@ -360,7 +359,7 @@ function updateCallStats(high, medium, low) {
 }
 
 // ====================================================================
-// CALL ACTIONS (IMPROVED with better response handling)
+// CALL ACTIONS (FIXED - Jetzt verwenden sie NUI Callbacks korrekt)
 // ====================================================================
 
 function assignToCall(callId) {
@@ -371,9 +370,9 @@ function assignToCall(callId) {
     return;
   }
 
-  console.log("⚡ Sending assignment request to server...");
+  console.log("⚡ Sending assignment request via NUI callback...");
 
-  // IMPROVED: Better response handling
+  // FIXED: Verwende NUI Callback statt direkte Server Events
   fetch(`https://${GetParentResourceName()}/assignToCall`, {
     method: "POST",
     headers: {
@@ -384,22 +383,28 @@ function assignToCall(callId) {
     }),
   })
     .then((response) => {
-      console.log("📡 Assignment response received:", response.status);
+      console.log("📡 NUI Assignment response received:", response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       return response.json();
     })
     .then((data) => {
-      console.log("📨 Assignment response data:", data);
+      console.log("📨 NUI Assignment response data:", data);
 
       if (data.success) {
-        console.log("✅ Assignment successful for call:", callId);
-        // Don't update UI here - wait for server events
+        console.log(
+          "✅ Assignment request sent successfully for call:",
+          callId
+        );
+        // UI wird durch Server Events aktualisiert
       } else {
         console.error("❌ Assignment failed:", data.message);
         // Optionally show error to user
       }
     })
     .catch((error) => {
-      console.error("❌ Error in assignment request:", error);
+      console.error("❌ Error in NUI assignment request:", error);
     });
 }
 
@@ -411,9 +416,9 @@ function completeCall(callId) {
     return;
   }
 
-  console.log("⚡ Sending completion request to server...");
+  console.log("⚡ Sending completion request via NUI callback...");
 
-  // IMPROVED: Better response handling
+  // FIXED: Verwende NUI Callback statt direkte Server Events
   fetch(`https://${GetParentResourceName()}/completeCall`, {
     method: "POST",
     headers: {
@@ -424,21 +429,27 @@ function completeCall(callId) {
     }),
   })
     .then((response) => {
-      console.log("📡 Completion response received:", response.status);
+      console.log("📡 NUI Completion response received:", response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       return response.json();
     })
     .then((data) => {
-      console.log("📨 Completion response data:", data);
+      console.log("📨 NUI Completion response data:", data);
 
       if (data.success) {
-        console.log("✅ Completion successful for call:", callId);
-        // Don't update UI here - wait for server events
+        console.log(
+          "✅ Completion request sent successfully for call:",
+          callId
+        );
+        // UI wird durch Server Events aktualisiert
       } else {
         console.error("❌ Completion failed:", data.message);
       }
     })
     .catch((error) => {
-      console.error("❌ Error in completion request:", error);
+      console.error("❌ Error in NUI completion request:", error);
     });
 }
 
@@ -689,7 +700,7 @@ function showNotification(data) {
 }
 
 // ====================================================================
-// UI MANAGEMENT (unchanged)
+// UI MANAGEMENT (FIXED - Besseres Error Handling)
 // ====================================================================
 
 function hideAllUIs() {
@@ -718,7 +729,7 @@ function hideAllUIs() {
 function closeUI() {
   console.log("❌ Close UI function called");
 
-  // Send close signal to game
+  // Send close signal to game via NUI callback
   fetch(`https://${GetParentResourceName()}/closeUI`, {
     method: "POST",
     headers: {
@@ -726,6 +737,12 @@ function closeUI() {
     },
     body: JSON.stringify({}),
   })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
     .then(() => {
       console.log("✅ Close UI callback sent successfully");
     })
@@ -762,23 +779,36 @@ document.addEventListener("keydown", function (event) {
 });
 
 // ====================================================================
-// UTILITY FUNCTIONS (unchanged)
+// UTILITY FUNCTIONS (FIXED - Bessere Resource Name Detection)
 // ====================================================================
 
 function GetParentResourceName() {
-  return window.location.hostname;
+  // FIXED: Bessere Resource Name Detection
+  if (window.location.hostname) {
+    return window.location.hostname;
+  }
+
+  // Fallback für lokale Tests
+  return "fl_core";
 }
 
 // ====================================================================
-// ERROR HANDLING (unchanged)
+// ERROR HANDLING (IMPROVED)
 // ====================================================================
 
 window.addEventListener("error", function (event) {
   console.error("❌ FL UI Error:", event.error);
+  console.error("❌ FL UI Error Details:", {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+  });
 });
 
 window.addEventListener("unhandledrejection", function (event) {
   console.error("❌ FL UI Unhandled Promise Rejection:", event.reason);
+  console.error("❌ FL UI Promise Details:", event);
 });
 
 // Add CSS animation for notification slide out
@@ -814,5 +844,5 @@ style.textContent = `
 document.head.appendChild(style);
 
 console.log(
-  "🎉 FL Emergency Services UI script loaded successfully with FIXED call assignment"
+  "🎉 FL Emergency Services UI script loaded successfully with FIXED NUI Callbacks"
 );

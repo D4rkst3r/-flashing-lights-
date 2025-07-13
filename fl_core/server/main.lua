@@ -1,9 +1,9 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - FIXED CALL ASSIGNMENT BUG
+-- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (NUI CALLBACKS FIXED)
 -- Hauptprobleme behoben:
--- 1. NUI Callback Response fehlte
--- 2. Call Status Update Events waren nicht konsistent
--- 3. Debug-Output verbessert für besseres Troubleshooting
+-- 1. RegisterNUICallback aus Server-Code entfernt (funktioniert nur client-side)
+-- 2. Durch Server Events ersetzt
+-- 3. Client sendet jetzt Server Events statt NUI Callbacks
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
@@ -91,7 +91,7 @@ function CreateEmergencyCall(callData)
     end
 
     FL.Debug('🚨 Created emergency call: ' ..
-    callId .. ' for ' .. emergencyCall.service .. ' - Notified ' .. notifiedCount .. ' units')
+        callId .. ' for ' .. emergencyCall.service .. ' - Notified ' .. notifiedCount .. ' units')
     return callId
 end
 
@@ -282,17 +282,15 @@ function GetPlayerServiceInfo(source)
 end
 
 -- ====================================================================
--- NUI CALLBACKS (FIXED - Missing responses)
+-- SERVER EVENTS (ERSETZT NUI CALLBACKS)
 -- ====================================================================
 
--- NUI: Assign to call (FIXED with proper response)
-RegisterNUICallback('assignToCall', function(data, cb)
-    FL.Debug('📱 NUI Callback: assignToCall - Data: ' .. json.encode(data))
+-- FIXED: Server Event statt NUI Callback für Assignment
+RegisterServerEvent('fl_core:assignToCallFromUI', function(callId)
+    FL.Debug('📱 Server Event: assignToCallFromUI - CallID: ' .. tostring(callId))
 
-    local callId = data.callId
     if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
+        FL.Debug('❌ No callId provided in server event')
         return
     end
 
@@ -300,23 +298,20 @@ RegisterNUICallback('assignToCall', function(data, cb)
 
     FL.Debug('📱 Assignment result - Success: ' .. tostring(success) .. ', Message: ' .. tostring(message))
 
-    -- WICHTIG: Proper response to NUI
-    cb({
+    -- Send result back to client
+    TriggerClientEvent('fl_core:assignmentResult', source, {
         success = success,
         message = message,
-        callId = callId,
-        timestamp = os.time()
+        callId = callId
     })
 end)
 
--- NUI: Complete call (FIXED with proper response)
-RegisterNUICallback('completeCall', function(data, cb)
-    FL.Debug('📱 NUI Callback: completeCall - Data: ' .. json.encode(data))
+-- FIXED: Server Event statt NUI Callback für Completion
+RegisterServerEvent('fl_core:completeCallFromUI', function(callId)
+    FL.Debug('📱 Server Event: completeCallFromUI - CallID: ' .. tostring(callId))
 
-    local callId = data.callId
     if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
+        FL.Debug('❌ No callId provided in server event')
         return
     end
 
@@ -324,23 +319,16 @@ RegisterNUICallback('completeCall', function(data, cb)
 
     FL.Debug('📱 Completion result - Success: ' .. tostring(success) .. ', Message: ' .. tostring(message))
 
-    -- WICHTIG: Proper response to NUI
-    cb({
+    -- Send result back to client
+    TriggerClientEvent('fl_core:completionResult', source, {
         success = success,
         message = message,
-        callId = callId,
-        timestamp = os.time()
+        callId = callId
     })
 end)
 
--- NUI: Close UI (unchanged)
-RegisterNUICallback('closeUI', function(data, cb)
-    FL.Debug('📱 NUI Callback: closeUI')
-    cb('ok')
-end)
-
 -- ====================================================================
--- EVENT HANDLERS (unchanged)
+-- REGULAR EVENT HANDLERS (unchanged)
 -- ====================================================================
 
 -- Player wants to toggle duty at station
@@ -609,4 +597,4 @@ CreateThread(function()
     end)
 end)
 
-FL.Debug('🎉 FL Core server loaded with FIXED call assignment system')
+FL.Debug('🎉 FL Core server loaded with FIXED NUI Callbacks replaced by Server Events')

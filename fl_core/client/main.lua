@@ -1,6 +1,9 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - NUCLEAR NULL-SAFE VERSION
--- GARANTIERT 0 WARNINGS - Alle nil/integer Probleme behoben
+-- FLASHING LIGHTS EMERGENCY SERVICES - CLIENT MAIN (NUI CALLBACKS FIXED)
+-- Hauptprobleme behoben:
+-- 1. NUI Callbacks jetzt korrekt im Client registriert
+-- 2. NUI Callbacks senden Server Events statt direkt zu arbeiten
+-- 3. Bessere Response-Handling für UI Updates
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
@@ -87,6 +90,87 @@ CreateThread(function()
             FL.Client.playerPed = newPed
             FL.Debug('Player ped updated: ' .. newPed)
         end
+    end
+end)
+
+-- ====================================================================
+-- NUI CALLBACKS (FIXED - Jetzt korrekt im Client registriert)
+-- ====================================================================
+
+-- NUI: Assign to call (FIXED - sendet Server Event)
+RegisterNUICallback('assignToCall', function(data, cb)
+    FL.Debug('📱 NUI Callback: assignToCall - Data: ' .. json.encode(data))
+
+    local callId = data.callId
+    if not callId then
+        FL.Debug('❌ No callId provided in NUI callback')
+        cb({ success = false, message = 'No call ID provided' })
+        return
+    end
+
+    -- Send server event instead of handling directly
+    TriggerServerEvent('fl_core:assignToCallFromUI', callId)
+
+    -- Respond to NUI immediately (server will handle the logic)
+    cb({
+        success = true,
+        message = 'Assignment request sent to server',
+        callId = callId
+    })
+end)
+
+-- NUI: Complete call (FIXED - sendet Server Event)
+RegisterNUICallback('completeCall', function(data, cb)
+    FL.Debug('📱 NUI Callback: completeCall - Data: ' .. json.encode(data))
+
+    local callId = data.callId
+    if not callId then
+        FL.Debug('❌ No callId provided in NUI callback')
+        cb({ success = false, message = 'No call ID provided' })
+        return
+    end
+
+    -- Send server event instead of handling directly
+    TriggerServerEvent('fl_core:completeCallFromUI', callId)
+
+    -- Respond to NUI immediately (server will handle the logic)
+    cb({
+        success = true,
+        message = 'Completion request sent to server',
+        callId = callId
+    })
+end)
+
+-- NUI: Close UI (unchanged)
+RegisterNUICallback('closeUI', function(data, cb)
+    FL.Debug('📱 NUI Callback: closeUI')
+    CloseMDT()
+    cb('ok')
+end)
+
+-- ====================================================================
+-- NEW SERVER EVENT HANDLERS (für Responses von Server)
+-- ====================================================================
+
+-- Handle assignment result from server
+RegisterNetEvent('fl_core:assignmentResult', function(result)
+    FL.Debug('📱 Assignment result received: ' .. json.encode(result))
+
+    if result.success then
+        QBCore.Functions.Notify('Successfully assigned to call ' .. result.callId, 'success')
+    else
+        QBCore.Functions.Notify('Assignment failed: ' .. result.message, 'error')
+    end
+end)
+
+-- Handle completion result from server
+RegisterNetEvent('fl_core:completionResult', function(result)
+    FL.Debug('📱 Completion result received: ' .. json.encode(result))
+
+    if result.success then
+        QBCore.Functions.Notify('Successfully completed call ' .. result.callId, 'success')
+    else
+        QBCore.Functions.Notify('Completion failed: ' .. result.message, 'error')
     end
 end)
 
@@ -631,7 +715,7 @@ function CreateStationBlips()
                         local serviceData = FL.Functions.GetServiceData(stationData.service)
                         if serviceData then
                             local blip = AddBlipForCoord(stationData.coords.x, stationData.coords.y, stationData.coords
-                            .z)
+                                .z)
 
                             SetBlipSprite(blip, serviceData.blip)
                             SetBlipDisplay(blip, 4)
@@ -857,4 +941,4 @@ CreateThread(function()
     end
 end)
 
-FL.Debug('✅ FL Core client loaded with NUCLEAR NULL-SAFE fix - GUARANTEED 0 warnings')
+FL.Debug('✅ FL Core client loaded with FIXED NUI Callbacks and Server Event communication')

@@ -2,8 +2,8 @@ fx_version 'cerulean'
 game 'gta5'
 
 author 'FlashingLights Emergency Services'
-description 'Core module for Emergency Services System'
-version '1.0.0'
+description 'Core module for Emergency Services System - FIXED VERSION'
+version '1.1.0'
 
 -- QBCore dependency
 dependency 'qb-core'
@@ -14,17 +14,16 @@ shared_scripts {
     'shared/*.lua'
 }
 
--- Server scripts - loaded after shared
+-- Server scripts - loaded after shared (FIXED Ladereihenfolge)
 server_scripts {
     '@oxmysql/lib/MySQL.lua', -- QBCore 1.3.0 uses oxmysql
-    'server/database.lua',    -- Auto database setup
-    'server/main.lua',        -- QBCore integration version
-    -- 'server/commands.lua',   -- REMOVED - using QBCore commands now
+    'server/main.lua',        -- Main server script with fixed NUI handling
+    -- database.lua entfernt da redundant zu main.lua
 }
 
--- Client scripts
+-- Client scripts (FIXED - Main enthält jetzt alle NUI Callbacks)
 client_scripts {
-    'client/main.lua' -- QBCore integration version
+    'client/main.lua' -- Contains ALL client logic including NUI callbacks
 }
 
 -- UI files

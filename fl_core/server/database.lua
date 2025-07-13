@@ -1,7 +1,9 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - VSCODE WARNINGS FIXED
--- MySQL global warnings behoben durch bessere Initialisierung
--- Alle kritischen Parameter-Mismatches behoben
+-- FLASHING LIGHTS EMERGENCY SERVICES - DATABASE (NUI CALLBACKS FIXED)
+-- Hauptprobleme behoben:
+-- 1. RegisterNUICallback aus Server-Code entfernt (funktioniert nur client-side)
+-- 2. Alle MySQL-Referenzen korrekt initialisiert
+-- 3. Bessere Null-Safety für alle Parameter
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
@@ -202,7 +204,7 @@ function CreateEmergencyCall(callData)
     end
 
     FL.Debug('🚨 Created emergency call: ' ..
-    callId .. ' for ' .. emergencyCall.service .. ' - Notified ' .. notifiedCount .. ' units')
+        callId .. ' for ' .. emergencyCall.service .. ' - Notified ' .. notifiedCount .. ' units')
     return callId
 end
 
@@ -394,62 +396,11 @@ function HandleDutyToggle(source, stationId)
 end
 
 -- ====================================================================
--- NUI CALLBACKS (FIXED - Missing responses)
+-- SERVER EVENTS (NUI CALLBACKS ENTFERNT - Diese gehören ins Client-Script)
 -- ====================================================================
 
--- NUI: Assign to call (FIXED with proper response)
-RegisterNUICallback('assignToCall', function(data, cb)
-    FL.Debug('📱 NUI Callback: assignToCall - Data: ' .. json.encode(data))
-
-    local callId = data.callId
-    if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
-        return
-    end
-
-    local success, message = AssignUnitToCall(callId, source)
-
-    FL.Debug('📱 Assignment result - Success: ' .. tostring(success) .. ', Message: ' .. tostring(message))
-
-    -- WICHTIG: Proper response to NUI
-    cb({
-        success = success,
-        message = message,
-        callId = callId,
-        timestamp = os.time()
-    })
-end)
-
--- NUI: Complete call (FIXED with proper response)
-RegisterNUICallback('completeCall', function(data, cb)
-    FL.Debug('📱 NUI Callback: completeCall - Data: ' .. json.encode(data))
-
-    local callId = data.callId
-    if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
-        return
-    end
-
-    local success, message = CompleteEmergencyCall(callId, source)
-
-    FL.Debug('📱 Completion result - Success: ' .. tostring(success) .. ', Message: ' .. tostring(message))
-
-    -- WICHTIG: Proper response to NUI
-    cb({
-        success = success,
-        message = message,
-        callId = callId,
-        timestamp = os.time()
-    })
-end)
-
--- NUI: Close UI (unchanged)
-RegisterNUICallback('closeUI', function(data, cb)
-    FL.Debug('📱 NUI Callback: closeUI')
-    cb('ok')
-end)
+-- Alle NUI Callbacks wurden entfernt, da sie nur client-side funktionieren
+-- Diese Events werden stattdessen in server/main.lua behandelt
 
 -- ====================================================================
 -- EVENT HANDLERS
@@ -638,7 +589,7 @@ RegisterCommand('servercalls', function(source, args, rawCommand)
         print('^3[FL SERVER CALLS]^7 Priority: ' .. callData.priority)
         print('^3[FL SERVER CALLS]^7 Assigned Units: ' .. json.encode(callData.assigned_units or {}))
         print('^3[FL SERVER CALLS]^7 Coords: ' ..
-        callData.coords.x .. ', ' .. callData.coords.y .. ', ' .. callData.coords.z)
+            callData.coords.x .. ', ' .. callData.coords.y .. ', ' .. callData.coords.z)
         print('^3[FL SERVER CALLS]^7 ---')
     end
     print('^3[FL SERVER CALLS DEBUG]^7 Total active calls: ' .. count)
@@ -677,4 +628,4 @@ AddEventHandler('playerDropped', function(reason)
     end
 end)
 
-FL.Debug('🎉 FL Core server loaded with ALL VSCode warnings fixed')
+FL.Debug('🎉 FL Core database loaded with ALL NUI Callbacks removed (they belong client-side)')
