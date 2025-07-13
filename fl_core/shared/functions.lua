@@ -1,6 +1,7 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - SHARED FUNCTIONS (KORRIGIERTE VERSION)
--- ALLE KRITISCHEN FIXES IMPLEMENTIERT:
+-- FLASHING LIGHTS EMERGENCY SERVICES - SHARED FUNCTIONS (FIVEM KOMPATIBLE VERSION)
+-- ALLE KRITISCHEN FIXES IMPLEMENTIERT + FIVEM KOMPATIBILITÄT:
+-- ✅ FiveM-kompatible Zeit-Funktionen (ohne os.date/os.time)
 -- ✅ Enhanced Input Validation für alle Funktionen
 -- ✅ Null-Safety für alle Parameter und Return Values
 -- ✅ Better Error Handling mit Try-Catch Pattern
@@ -24,6 +25,31 @@ FL.QBCore = nil
 FL.FrameworkReady = false
 FL.InitializationAttempts = 0
 FL.MaxInitializationAttempts = 10
+
+-- FiveM-compatible time functions
+FL.TimeUtils = {
+    -- Get current timestamp (FiveM compatible)
+    getTimestamp = function()
+        return GetGameTimer()
+    end,
+
+    -- Get formatted time (FiveM compatible)
+    getFormattedTime = function()
+        local gameTimer = GetGameTimer()
+        local hours = math.floor(gameTimer / 3600000) % 24
+        local minutes = math.floor(gameTimer / 60000) % 60
+        local seconds = math.floor(gameTimer / 1000) % 60
+        return string.format('%02d:%02d:%02d', hours, minutes, seconds)
+    end,
+
+    -- Get Unix timestamp equivalent
+    getUnixTime = function()
+        -- Approximate Unix timestamp based on game timer
+        -- This is not exact but works for relative timing
+        local baseTime = 1640995200 -- Jan 1, 2022 as base
+        return baseTime + math.floor(GetGameTimer() / 1000)
+    end
+}
 
 -- ====================================================================
 -- FRAMEWORK INTEGRATION (ENHANCED WITH RETRY LOGIC)
@@ -53,7 +79,7 @@ function FL.GetFramework()
         return FL.QBCore
     else
         FL.Debug('⚠️ Framework initialization failed on attempt ' ..
-        FL.InitializationAttempts .. ': ' .. tostring(framework))
+            FL.InitializationAttempts .. ': ' .. tostring(framework))
         return nil
     end
 end
@@ -75,10 +101,10 @@ function FL.GetFrameworkSafe()
 end
 
 -- ====================================================================
--- ENHANCED DEBUG SYSTEM
+-- ENHANCED DEBUG SYSTEM (FIVEM KOMPATIBEL)
 -- ====================================================================
 
--- Debug function with enhanced features
+-- Debug function with enhanced features (FiveM compatible)
 function FL.Debug(message, level, category)
     if not Config or not Config.Debug then
         return
@@ -89,8 +115,8 @@ function FL.Debug(message, level, category)
     level = level or 'INFO'
     category = category or 'GENERAL'
 
-    -- Add timestamp
-    local timestamp = os.date('%H:%M:%S')
+    -- Add timestamp (FiveM compatible)
+    local timestamp = FL.TimeUtils.getFormattedTime()
 
     -- Color coding based on level
     local colors = {
@@ -648,11 +674,11 @@ function FL.Functions.GenerateEmergencyCall(serviceName)
         type = randomType,
         service = serviceName,
         coords = randomCoords,
-        timestamp = os.time(),
+        timestamp = FL.TimeUtils.getUnixTime(),
         status = 'pending',
         priority = math.random(1, 3),
         description = FL.Functions.GetCallDescription(randomType),
-        created_at = os.time()
+        created_at = FL.TimeUtils.getUnixTime()
     }
 
     FL.EndProfile('GenerateEmergencyCall')
@@ -748,10 +774,10 @@ function FL.Functions.ValidateStation(stationId)
 end
 
 -- ====================================================================
--- FORMATTING FUNCTIONS (ENHANCED WITH ERROR HANDLING)
+-- FORMATTING FUNCTIONS (ENHANCED WITH ERROR HANDLING + FIVEM KOMPATIBEL)
 -- ====================================================================
 
--- Format time for display with validation
+-- Format time for display with validation (FiveM compatible)
 function FL.Functions.FormatTime(timestamp)
     if not timestamp then
         return 'Unknown'
@@ -762,16 +788,15 @@ function FL.Functions.FormatTime(timestamp)
         return 'Invalid'
     end
 
-    local success, result = pcall(os.date, '%H:%M:%S', num_timestamp)
-    if success then
-        return result
-    else
-        FL.Debug('⚠️ Error formatting time: ' .. tostring(result), 'WARN', 'FORMAT')
-        return 'Error'
-    end
+    -- FiveM-compatible time formatting
+    local hours = math.floor(num_timestamp / 3600) % 24
+    local minutes = math.floor(num_timestamp / 60) % 60
+    local seconds = num_timestamp % 60
+
+    return string.format('%02d:%02d:%02d', hours, minutes, seconds)
 end
 
--- Format date for display with validation
+-- Format date for display with validation (FiveM compatible)
 function FL.Functions.FormatDate(timestamp)
     if not timestamp then
         return 'Unknown'
@@ -782,13 +807,13 @@ function FL.Functions.FormatDate(timestamp)
         return 'Invalid'
     end
 
-    local success, result = pcall(os.date, '%m/%d/%Y', num_timestamp)
-    if success then
-        return result
-    else
-        FL.Debug('⚠️ Error formatting date: ' .. tostring(result), 'WARN', 'FORMAT')
-        return 'Error'
-    end
+    -- Simple date formatting (basic approach for FiveM)
+    local days = math.floor(num_timestamp / 86400)
+    local month = ((days % 365) / 30) + 1
+    local day = (days % 30) + 1
+    local year = 2024 + math.floor(days / 365)
+
+    return string.format('%02d/%02d/%04d', math.floor(month), math.floor(day), math.floor(year))
 end
 
 -- Format distance for display with validation
@@ -1005,6 +1030,8 @@ CreateThread(function()
             FL.Debug('⚠️ Config.' .. section .. ' not available', 'WARN', 'CONFIG')
         end
     end
+
+    FL.Debug('🕒 Time system: ' .. FL.TimeUtils.getFormattedTime(), 'INFO', 'TIME')
 end)
 
-FL.Debug('📚 Shared functions loaded successfully with ENHANCED VALIDATION & ERROR HANDLING')
+FL.Debug('📚 Shared functions loaded successfully with ENHANCED VALIDATION & FIVEM COMPATIBILITY')
