@@ -18,10 +18,54 @@ let currentPlayerSource = null;
 const UIState = {
   isVisible: false,
   lastUpdate: 0,
-  updateThrottle: 100, // Minimum 100ms between updates
+  updateThrottle: 100,
   pendingUpdates: new Set(),
   errorCount: 0,
-  maxErrors: 5,
+  maxErrors: 3, // Reduced from 5
+
+  // Simplified error handling
+  handleError: function (error, context) {
+    this.errorCount++;
+    console.error(`FL UI Error (${context}):`, error);
+
+    // Show user-friendly notification
+    showNotification({
+      type: "error",
+      title: "UI Error",
+      message: `An error occurred in ${context}. Please try again.`,
+      duration: 3000,
+    });
+
+    if (this.errorCount >= this.maxErrors) {
+      this.emergencyReset();
+    }
+  },
+
+  emergencyReset: function () {
+    console.warn("🚨 FL UI Emergency Reset - Too many errors");
+
+    // Simple reset
+    this.isVisible = false;
+    this.errorCount = 0;
+    this.pendingUpdates.clear();
+
+    // Force close all UIs
+    hideAllUIs();
+
+    // Notify game
+    sendNUICallback("emergencyReset", {
+      reason: "tooManyErrors",
+      timestamp: Date.now(),
+    }).catch((e) => console.error("Failed to send emergency reset:", e));
+
+    // Show reset notification
+    showNotification({
+      type: "warning",
+      title: "UI Reset",
+      message: "Interface was reset due to errors. You can reopen it now.",
+      duration: 8000,
+    });
+  },
 
   // Safe state updates
   setVisible: function (visible) {

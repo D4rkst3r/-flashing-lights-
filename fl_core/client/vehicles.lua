@@ -61,6 +61,16 @@ end
 
 -- Spawn emergency vehicle
 function SpawnEmergencyVehicle(stationId, vehicleKey, spawnIndex)
+    -- Check with vehicle manager first
+    if FL.VehicleManager then
+        local currentCount = FL.VehicleManager.getPlayerVehicleCount()
+        if currentCount >= FL.VehicleManager.maxVehiclesPerPlayer then
+            QBCore.Functions.Notify(
+                'Maximum vehicles spawned (' .. FL.VehicleManager.maxVehiclesPerPlayer .. '). Removing oldest vehicle.',
+                'warning')
+            FL.VehicleManager.cleanupOldestVehicle()
+        end
+    end
     local stationData = Config.Stations[stationId]
     local vehicleData = Config.EmergencyVehicles[FL.Client.serviceInfo.service][vehicleKey]
 

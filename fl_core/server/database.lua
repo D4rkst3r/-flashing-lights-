@@ -47,7 +47,7 @@ FL.ServiceMapping = {
 -- ENHANCED DATABASE HEALTH MONITORING
 -- ====================================================================
 
--- Test database connection with timeout
+-- Enhanced database connection test with connection pooling check
 local function TestDatabaseConnection(timeout)
     timeout = timeout or 2000 -- 2 second default timeout
 
@@ -60,15 +60,16 @@ local function TestDatabaseConnection(timeout)
     local completed = false
     local startTime = GetGameTimer()
 
-    MySQL.query('SELECT 1 as test', {}, function(result)
-        success = result and result[1] and result[1].test == 1
+    -- Test with simple scalar query for better performance
+    MySQL.scalar('SELECT 1', {}, function(result)
+        success = (result == 1)
         completed = true
         FL.Debug('📊 Database test query completed - Success: ' .. tostring(success))
     end)
 
     -- Wait for response with timeout
     while not completed and (GetGameTimer() - startTime) < timeout do
-        Wait(50)
+        Wait(10) -- Reduced wait time for better responsiveness
     end
 
     if not completed then
@@ -77,6 +78,24 @@ local function TestDatabaseConnection(timeout)
     end
 
     return success
+end
+
+-- Additional health check function
+local function IsDatabaseHealthy()
+    -- Quick health check without waiting
+    local healthy = nil
+    MySQL.scalar('SELECT CONNECTION_ID()', {}, function(result)
+        healthy = (result ~= nil)
+    end)
+
+    -- Short timeout check
+    local attempts = 0
+    while healthy == nil and attempts < 10 do
+        Wait(10)
+        attempts = attempts + 1
+    end
+
+    return healthy == true
 end
 
 -- Comprehensive database availability check
@@ -125,7 +144,7 @@ local function AttemptDatabaseReconnection()
     dbStatus.reconnectAttempts = dbStatus.reconnectAttempts + 1
 
     FL.Debug('🔄 Attempting database reconnection (attempt ' ..
-    dbStatus.reconnectAttempts .. '/' .. dbStatus.maxReconnectAttempts .. ')')
+        dbStatus.reconnectAttempts .. '/' .. dbStatus.maxReconnectAttempts .. ')')
 
     CreateThread(function()
         Wait(dbStatus.reconnectDelay)
@@ -271,6 +290,22 @@ function InitializeDatabaseStructure()
             FL.Server.DatabaseStatus.isAvailable = false
         end
     end)
+
+    -- Enhanced query execution with health check
+    function ExecuteQueryWithHealthCheck(query, parameters, callback, retries)
+        retries = retries or 3
+
+        -- Pre-check database health
+        if not CheckDatabaseAvailability() then
+            FL.Debug('❌ Database not available - attempting reconnection')
+            AttemptDatabaseReconnection()
+            if callback then callback(false, nil) end
+            return false
+        end
+
+        -- Use existing ExecuteQuerySafely with health check
+        return ExecuteQuerySafely(query, parameters, callback, retries)
+    end
 
     -- Create duty log table
     local dutyLogQuery = [[
@@ -848,7 +883,7 @@ CreateThread(function()
     FL.Debug('📦 MySQL Resource: ' .. mysqlResource)
     FL.Debug('🎯 QBCore Resource: ' .. qbcoreResource)
     FL.Debug('⚙️ Config Database Setup: ' ..
-    tostring(Config.Database and Config.Database.autoSetup and Config.Database.autoSetup.enabled))
+        tostring(Config.Database and Config.Database.autoSetup and Config.Database.autoSetup.enabled))
 
     if not dbAvailable then
         FL.Debug('⚠️ Warning: Database not available at startup')

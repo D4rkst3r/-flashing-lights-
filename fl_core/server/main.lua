@@ -682,8 +682,8 @@ end
 -- SERVER EVENTS (ENHANCED WITH VALIDATION AND ERROR HANDLING)
 -- ====================================================================
 
--- Enhanced server event for assignment
-RegisterServerEvent('fl_core:assignToCallFromUI', function(callId)
+-- Enhanced server event for assignment with rate limiting
+RegisterServerEvent('fl_core:assignToCallFromUI', FL.RateLimitMiddleware('assignToCall', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: assignToCallFromUI - CallID: ' .. tostring(callId))
 
     if not callId or callId == '' then
@@ -706,10 +706,10 @@ RegisterServerEvent('fl_core:assignToCallFromUI', function(callId)
         message = message,
         callId = callId
     })
-end)
+end),
 
 -- Enhanced server event for starting work on call
-RegisterServerEvent('fl_core:startWorkOnCallFromUI', function(callId)
+RegisterServerEvent('fl_core:startWorkOnCallFromUI', FL.RateLimitMiddleware('startWork', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: startWorkOnCallFromUI - CallID: ' .. tostring(callId))
 
     if not callId or callId == '' then
@@ -732,10 +732,10 @@ RegisterServerEvent('fl_core:startWorkOnCallFromUI', function(callId)
         message = message,
         callId = callId
     })
-end)
+end),
 
 -- Enhanced server event for completion
-RegisterServerEvent('fl_core:completeCallFromUI', function(callId)
+RegisterServerEvent('fl_core:completeCallFromUI', FL.RateLimitMiddleware('completeCall', 3, 60000)(function(callId)
     FL.Debug('📱 Server Event: completeCallFromUI - CallID: ' .. tostring(callId))
 
     if not callId or callId == '' then
@@ -758,7 +758,7 @@ RegisterServerEvent('fl_core:completeCallFromUI', function(callId)
         message = message,
         callId = callId
     })
-end)
+end),
 
 -- ====================================================================
 -- REGULAR EVENT HANDLERS (ENHANCED)
@@ -767,13 +767,13 @@ end)
 -- Player wants to toggle duty at station
 RegisterServerEvent('fl_core:toggleDuty', function(stationId)
     HandleDutyToggle(source, stationId)
-end)
+end),
 
 -- Get player's current service info
 RegisterServerEvent('fl_core:getServiceInfo', function()
     local serviceInfo = GetPlayerServiceInfo(source)
     TriggerClientEvent('fl_core:serviceInfo', source, serviceInfo)
-end)
+end),
 
 -- Get all active calls for player's service (enhanced with cleanup)
 RegisterServerEvent('fl_core:getActiveCalls', function()
@@ -809,7 +809,7 @@ RegisterServerEvent('fl_core:getActiveCalls', function()
 
     FL.Debug('📤 Sending ' .. callCount .. ' calls to client for service: ' .. serviceInfo.service)
     TriggerClientEvent('fl_core:activeCalls', source, calls)
-end)
+end),
 
 -- ====================================================================
 -- DUTY MANAGEMENT (ENHANCED WITH CALLSIGN GENERATION)
@@ -861,7 +861,7 @@ function HandleDutyToggle(source, stationId)
     end
 
     return true
-end
+end,
 
 -- ====================================================================
 -- EQUIPMENT MANAGEMENT (QBCORE 1.3.0 COMPATIBLE)
@@ -905,7 +905,7 @@ RegisterServerEvent('fl_core:giveEquipment', function(serviceName)
     end
 
     FL.Debug('✅ Given ' .. givenCount .. ' equipment items for ' .. serviceName .. ' to ' .. Player.PlayerData.citizenid)
-end)
+end),
 
 -- Remove equipment from player (enhanced validation)
 RegisterServerEvent('fl_core:removeEquipment', function(serviceName)
@@ -948,7 +948,7 @@ RegisterServerEvent('fl_core:removeEquipment', function(serviceName)
 
     FL.Debug('✅ Removed ' ..
     removedCount .. ' equipment items for ' .. serviceName .. ' from ' .. Player.PlayerData.citizenid)
-end)
+end),
 
 -- ====================================================================
 -- ENHANCED ADMIN COMMANDS
@@ -1031,7 +1031,7 @@ RegisterCommand('testcall', function(source, args, rawCommand)
     else
         TriggerClientEvent('QBCore:Notify', source, 'Failed to generate call data', 'error')
     end
-end, false)
+end, false),
 
 -- Enhanced debug command to check server calls
 RegisterCommand('servercalls', function(source, args, rawCommand)
@@ -1079,7 +1079,7 @@ RegisterCommand('servercalls', function(source, args, rawCommand)
 
     TriggerClientEvent('QBCore:Notify', source,
         'Found ' .. count .. ' active calls (' .. memoryOnlyCount .. ' memory-only)', 'success')
-end, false)
+end, false),
 
 -- ====================================================================
 -- PERFORMANCE MONITORING & CLEANUP
@@ -1121,7 +1121,7 @@ CreateThread(function()
             FL.Debug('🧹 Garbage collection performed (was ' .. string.format('%.2f', memoryUsage) .. ' KB)')
         end
     end
-end)
+end),
 
 -- ====================================================================
 -- CLEANUP ON PLAYER DISCONNECT (ENHANCED)
@@ -1195,6 +1195,6 @@ AddEventHandler('playerDropped', function(reason)
     if cleanedCalls > 0 then
         FL.Debug('🧹 Cleaned up ' .. cleanedCalls .. ' calls after player ' .. source .. ' disconnect')
     end
-end)
+end),
 
-FL.Debug('🎉 FL Core server loaded with COMPLETE ROBUSTNESS & PERFORMANCE FIXES')
+FL.Debug('🎉 FL Core server loaded with COMPLETE ROBUSTNESS & PERFORMANCE FIXES'),

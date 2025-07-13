@@ -19,15 +19,18 @@ shared_scripts {
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/main.lua',
-    'server/discord.lua', -- NEW
-    'server/vehicles.lua' -- NEW
+    'server/discord.lua',
+    'server/vehicles.lua',
+    'server/security.lua',
+    'server/monitoring.lua' -- NEW
 }
 
 -- Client scripts
 client_scripts {
     'client/main.lua',
-    'client/qtarget.lua', -- NEW
-    'client/vehicles.lua' -- NEW
+    'client/qtarget.lua',
+    'client/vehicles.lua',
+    'client/vehicle_manager.lua' -- NEW
 }
 
 -- UI files

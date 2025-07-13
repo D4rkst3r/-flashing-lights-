@@ -311,28 +311,28 @@ Config.Uniforms = {
         male = {
             -- Basic uniform components
             tshirt_1 = 15,
-            tshirt_2 = 0,                -- Undershirt
+            tshirt_2 = 0, -- Undershirt
             torso_1 = 314,
-            torso_2 = 0,                 -- Fire jacket (EUP)
-            arms = 19,                   -- Arms
+            torso_2 = 0,  -- Fire jacket (EUP)
+            arms = 19,    -- Arms
             pants_1 = 134,
-            pants_2 = 0,                 -- Fire pants (EUP)
+            pants_2 = 0,  -- Fire pants (EUP)
             shoes_1 = 25,
-            shoes_2 = 0,                 -- Boots
+            shoes_2 = 0,  -- Boots
 
             -- Accessories
             helmet_1 = 122,
-            helmet_2 = 0,                 -- Fire helmet (EUP)
+            helmet_2 = 0, -- Fire helmet (EUP)
             chain_1 = 126,
-            chain_2 = 0,                  -- Air tank (EUP)
+            chain_2 = 0,  -- Air tank (EUP)
 
             -- Additional components for different situations
             mask_1 = -1,
-            mask_2 = 0,                  -- Face mask/respirator
+            mask_2 = 0,   -- Face mask/respirator
             bproof_1 = -1,
-            bproof_2 = 0,                -- Body armor
+            bproof_2 = 0, -- Body armor
             decals_1 = -1,
-            decals_2 = 0,                -- Decals/patches
+            decals_2 = 0, -- Decals/patches
 
             -- Fallback components (if EUP not available)
             fallback = {
@@ -350,10 +350,10 @@ Config.Uniforms = {
             tshirt_1 = 14,
             tshirt_2 = 0,
             torso_1 = 325,
-            torso_2 = 0,                -- Fire jacket female (EUP)
+            torso_2 = 0, -- Fire jacket female (EUP)
             arms = 14,
             pants_1 = 144,
-            pants_2 = 0,                -- Fire pants female (EUP)
+            pants_2 = 0, -- Fire pants female (EUP)
             shoes_1 = 25,
             shoes_2 = 0,
             helmet_1 = 121,
@@ -384,18 +384,18 @@ Config.Uniforms = {
     ['police'] = {
         male = {
             tshirt_1 = 58,
-            tshirt_2 = 0,                -- Police undershirt
+            tshirt_2 = 0, -- Police undershirt
             torso_1 = 55,
-            torso_2 = 0,                 -- Police jacket
+            torso_2 = 0,  -- Police jacket
             arms = 41,
             pants_1 = 25,
-            pants_2 = 0,                 -- Police pants
+            pants_2 = 0,  -- Police pants
             shoes_1 = 25,
-            shoes_2 = 0,                 -- Boots
+            shoes_2 = 0,  -- Boots
             chain_1 = 58,
-            chain_2 = 0,                 -- Police vest
+            chain_2 = 0,  -- Police vest
             helmet_1 = -1,
-            helmet_2 = 0,                -- No helmet by default
+            helmet_2 = 0, -- No helmet by default
 
             mask_1 = -1,
             mask_2 = 0,
@@ -451,14 +451,14 @@ Config.Uniforms = {
             tshirt_1 = 15,
             tshirt_2 = 0,
             torso_1 = 250,
-            torso_2 = 0,                -- EMS jacket (EUP)
+            torso_2 = 0, -- EMS jacket (EUP)
             arms = 85,
             pants_1 = 96,
-            pants_2 = 0,                -- EMS pants
+            pants_2 = 0, -- EMS pants
             shoes_1 = 25,
             shoes_2 = 0,
             chain_1 = 126,
-            chain_2 = 0,                -- Medical equipment
+            chain_2 = 0, -- Medical equipment
             helmet_1 = -1,
             helmet_2 = 0,
 
@@ -482,7 +482,7 @@ Config.Uniforms = {
             tshirt_1 = 14,
             tshirt_2 = 0,
             torso_1 = 258,
-            torso_2 = 0,                -- EMS jacket female (EUP)
+            torso_2 = 0, -- EMS jacket female (EUP)
             arms = 109,
             pants_1 = 99,
             pants_2 = 0,
@@ -664,22 +664,18 @@ Config.UI = {
 -- DISCORD CONFIGURATION (ENHANCED WITH VALIDATION)
 -- ====================================================================
 
+
+
 Config.Discord = {
-    enabled = true, -- Enable Discord integration
+    enabled = GetConvar('fl_discord_enabled', 'true') == 'true',
 
     webhooks = {
-        fire =
-        'https://discord.com/api/webhooks/1393779330420834396/PVtGoNEAYhl2qcr5z664ZwjC-AgrcQxKU0OlWQlxPznwfXCXSEWzPslsOGVFbQOmNerp',
-        police =
-        'https://discord.com/api/webhooks/1393779475849809961/4FbHgRvcWTQg699mvVTf77PGglAalVJUEEoYAM1k9DGIKNFZCxKevJfwwtNe2p0-FjOk',
-        ems =
-        'https://discord.com/api/webhooks/1393779560260304957/4CIG9IYTaErT_vub7aNPPHtm31PNrvnpwd34FtF6Zs5BM2zz4RtQiZQVSwZME3uB15iV',
-        admin =
-        'https://discord.com/api/webhooks/1393779655139528856/0FDOVON9EXE-kyQaV3W7aGBj8T4LSO9ZUQOAS0948vSOXwwMTD9Ax43Q-OyBw2dXlQlO',
-        duty =
-        'https://discord.com/api/webhooks/1393779733564751983/v3706PVrd9HI_5AtAP9kjvVzvo6ny6SBb98C-NtAoA6MsFsZf9G10Otqyel4Xtjcv_Yy',
-        emergency =
-        'https://discord.com/api/webhooks/1393779817085927565/iC5YKq7uqghQ4keHKZ768OL5-wmPz6yL1x3SrWd6sESidait2DJm6NzIUSLwHsJwtuea'
+        fire = GetConvar('fl_webhook_fire', ''),
+        police = GetConvar('fl_webhook_police', ''),
+        ems = GetConvar('fl_webhook_ems', ''),
+        admin = GetConvar('fl_webhook_admin', ''),
+        duty = GetConvar('fl_webhook_duty', ''),
+        emergency = GetConvar('fl_webhook_emergency', '')
     },
 
     -- Webhook settings
@@ -744,9 +740,9 @@ Config.Features = {
 
     -- Automatic call generation
     autoCalls = {
-        enabled = false,                      -- Enable automatic call generation (for testing)
-        interval = 600,                       -- Interval between auto calls in seconds (10 minutes)
-        maxActive = 3,                        -- Maximum active auto-generated calls
+        enabled = false,                        -- Enable automatic call generation (for testing)
+        interval = 600,                         -- Interval between auto calls in seconds (10 minutes)
+        maxActive = 3,                          -- Maximum active auto-generated calls
         services = { 'fire', 'police', 'ems' }, -- Services to generate calls for
     },
 

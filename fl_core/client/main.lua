@@ -507,7 +507,8 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
     end
 
     FL.Debug('Job updated: ' ..
-    job.name .. ' (Grade: ' .. (job.grade and job.grade.level or 'unknown') .. ', Duty: ' .. tostring(job.onduty) .. ')')
+        job.name ..
+        ' (Grade: ' .. (job.grade and job.grade.level or 'unknown') .. ', Duty: ' .. tostring(job.onduty) .. ')')
 
     -- Check if it's an emergency service job
     local service = FL.JobMapping[job.name]
@@ -938,6 +939,9 @@ function ShowMDT()
         FL.Client.showingUI = true
         SetNuiFocus(true, true)
 
+        -- Start key handling
+        StartUIKeyHandling()
+
         -- Send player source first
         SendNUIMessage({
             type = 'setPlayerSource',
@@ -957,6 +961,9 @@ end
 -- Close MDT properly (enhanced)
 function CloseMDT()
     FL.Debug('📱 Closing MDT UI - Starting cleanup')
+
+    -- Stop key handling first
+    StopUIKeyHandling()
 
     -- Force NUI off with multiple attempts
     for i = 1, 10 do
@@ -1033,6 +1040,59 @@ RegisterCommand('fixchat', function(source, args, rawCommand)
     QBCore.Functions.Notify('Chat should be fixed now - try T or Y', 'success')
 end, false)
 
+-- ====================================================================
+-- OPTIMIZED KEYBOARD HANDLING (NO CONTINUOUS THREADS)
+-- ====================================================================
+
+-- Register ESC key for closing MDT
+RegisterKeyMapping('closefl', 'Close FL Emergency Services UI', 'keyboard', 'ESCAPE')
+
+-- Handle ESC key press
+RegisterCommand('closefl', function()
+    if FL.Client.showingUI then
+        FL.Debug('🔑 ESC key pressed via RegisterKeyMapping - closing UI')
+        CloseMDT()
+    end
+end, false)
+
+-- Emergency close with BACKSPACE
+RegisterKeyMapping('emergencyclose', 'Emergency Close FL UI', 'keyboard', 'BACK')
+
+RegisterCommand('emergencyclose', function()
+    if FL.Client.showingUI then
+        FL.Debug('🚨 Emergency close via BACKSPACE')
+        CloseMDT()
+    end
+end, false)
+
+-- Alternative: Direct key detection only when UI is active
+local uiKeyHandler = nil
+
+function StartUIKeyHandling()
+    if uiKeyHandler then return end
+
+    uiKeyHandler = CreateThread(function()
+        while FL.Client.showingUI do
+            Wait(0)
+
+            -- Only check when UI is actually showing
+            if IsControlJustPressed(0, 322) or IsControlJustPressed(0, 194) then
+                FL.Debug('🔑 Direct key detection - closing UI')
+                CloseMDT()
+                break
+            end
+        end
+        uiKeyHandler = nil
+    end)
+end
+
+function StopUIKeyHandling()
+    if uiKeyHandler then
+        FL.Client.showingUI = false -- This will stop the thread
+        uiKeyHandler = nil
+    end
+end
+
 -- Enhanced debug command
 RegisterCommand('debugcalls', function(source, args, rawCommand)
     if FL.Client.serviceInfo and FL.Client.serviceInfo.isOnDuty then
@@ -1066,38 +1126,7 @@ RegisterCommand('debugcalls', function(source, args, rawCommand)
     end
 end, false)
 
--- ====================================================================
--- OPTIMIZED KEY HANDLING (PERFORMANCE CRITICAL)
--- ====================================================================
 
--- ESC key handler for closing MDT (OPTIMIZED VERSION)
-CreateThread(function()
-    local lastCheck = 0
-    while true do
-        local now = GetGameTimer()
-
-        if FL.Client.showingUI then
-            Wait(0) -- Nur wenn UI aktiv - niedrige Latenz für Responsiveness
-
-            -- ESC key
-            if IsControlJustPressed(0, 322) then -- ESC
-                FL.Debug('ESC key pressed - closing MDT')
-                CloseMDT()
-            end
-
-            -- Emergency keys (aber nur alle 100ms prüfen um Performance zu sparen)
-            if now - lastCheck > 100 then
-                if IsControlJustPressed(0, 194) then -- BACKSPACE
-                    FL.Debug('BACKSPACE pressed - emergency close')
-                    CloseMDT()
-                end
-                lastCheck = now
-            end
-        else
-            Wait(1000) -- UI nicht aktiv = längere Pause (90% Performance-Gewinn!)
-        end
-    end
-end)
 
 -- ====================================================================
 -- RESOURCE CLEANUP (CRITICAL)
