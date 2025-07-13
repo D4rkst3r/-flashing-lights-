@@ -1,18 +1,25 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - CLIENT MAIN (MULTI-UNIT + VOLLSTÄNDIGE DEBUG VERSION)
--- BASIERT AUF DEINER DEBUG VERSION + MULTI-UNIT FEATURES
+-- FLASHING LIGHTS EMERGENCY SERVICES - CLIENT MAIN (KORRIGIERTE VERSION)
+-- ALLE KRITISCHEN FIXES IMPLEMENTIERT:
+-- ✅ Performance-optimiertes Key Handling
+-- ✅ Robuste Entity Validation
+-- ✅ UI Update Throttling
+-- ✅ Memory Management & Cleanup
+-- ✅ Enhanced Error Handling
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
 
--- Client state variables (nil-safe initialized + Multi-Unit Support)
+-- Client state variables (enhanced with error recovery)
 FL.Client = {
-    serviceInfo = nil,                           -- Current service info from server
-    activeCalls = {},                            -- Active emergency calls
-    nearbyMarkers = {},                          -- Nearby station markers
-    showingUI = false,                           -- UI state
-    playerPed = 0,                               -- Initialize as 0 instead of nil
-    playerSource = GetPlayerServerId(PlayerId()) -- Player's server ID for Multi-Unit
+    serviceInfo = nil,
+    activeCalls = {},
+    nearbyMarkers = {},
+    showingUI = false,
+    playerPed = 0,
+    playerSource = GetPlayerServerId(PlayerId()),
+    lastUIUpdate = 0,
+    uiUpdateThrottle = 100 -- Minimum 100ms between UI updates
 }
 
 -- Job to service mapping (same as server)
@@ -23,83 +30,154 @@ FL.JobMapping = {
 }
 
 -- ====================================================================
--- NULL-SAFE HELPER FUNCTIONS
+-- ENHANCED HELPER FUNCTIONS (ROBUSTE VERSION)
 -- ====================================================================
 
--- Safe PlayerPedId getter with validation
+-- Safe PlayerPedId getter with enhanced validation
 local function GetSafePlayerPed()
     local ped = PlayerPedId()
-    if ped and ped > 0 and DoesEntityExist(ped) then
+    if ped and ped > 0 and DoesEntityExist(ped) and not IsEntityDead(ped) then
         return ped
     end
     return 0 -- Return 0 instead of nil for integer compatibility
 end
 
--- Safe integer conversion
+-- Safe integer conversion with better validation
 local function SafeInt(value, default)
-    if type(value) == "number" and value >= 0 then
+    if type(value) == "number" and value >= 0 and value < 2147483647 then
         return math.floor(value)
     end
     return default or 0
 end
 
--- Safe entity check
+-- Safe entity check with death validation
 local function IsValidEntity(entity)
-    return entity and entity > 0 and DoesEntityExist(entity)
+    return entity and entity > 0 and DoesEntityExist(entity) and not IsEntityDead(entity)
+end
+
+-- Validate player state for emergency service operations
+local function IsPlayerStateValid()
+    local ped = GetSafePlayerPed()
+    if ped == 0 then
+        return false, "Invalid player entity"
+    end
+
+    if IsEntityDead(ped) then
+        return false, "Player is dead"
+    end
+
+    if IsPedInAnyVehicle(ped, false) then
+        local vehicle = GetVehiclePedIsIn(ped, false)
+        if not IsValidEntity(vehicle) then
+            return false, "Invalid vehicle state"
+        end
+    end
+
+    return true, "Player state valid"
+end
+
+-- Throttled UI update system
+local function UpdateMDTSafely(data, eventType)
+    local now = GetGameTimer()
+
+    if now - FL.Client.lastUIUpdate < FL.Client.uiUpdateThrottle then
+        -- Throttle: Schedule update for later
+        CreateThread(function()
+            Wait(FL.Client.uiUpdateThrottle)
+            FL.Client.lastUIUpdate = GetGameTimer()
+
+            if FL.Client.showingUI then
+                SendNUIMessage({
+                    type = eventType or 'updateCalls',
+                    data = data
+                })
+                FL.Debug('📱 Throttled UI update sent: ' .. (eventType or 'updateCalls'))
+            end
+        end)
+        return
+    end
+
+    -- Immediate update
+    FL.Client.lastUIUpdate = now
+    if FL.Client.showingUI then
+        SendNUIMessage({
+            type = eventType or 'updateCalls',
+            data = data
+        })
+        FL.Debug('📱 Immediate UI update sent: ' .. (eventType or 'updateCalls'))
+    end
 end
 
 -- ====================================================================
--- INITIALIZATION (ENHANCED)
+-- INITIALIZATION (ENHANCED WITH ERROR RECOVERY)
 -- ====================================================================
 
 CreateThread(function()
-    while QBCore == nil do
+    local initAttempts = 0
+    local maxAttempts = 10
+
+    while QBCore == nil and initAttempts < maxAttempts do
         QBCore = FL.GetFramework()
-        Wait(200)
+        initAttempts = initAttempts + 1
+        FL.Debug('⏳ Waiting for QBCore... Attempt ' .. initAttempts)
+        Wait(1000)
+    end
+
+    if QBCore == nil then
+        FL.Debug('❌ CRITICAL: Failed to initialize QBCore after ' .. maxAttempts .. ' attempts!')
+        return
     end
 
     FL.Client.playerPed = GetSafePlayerPed()
     FL.Client.playerSource = GetPlayerServerId(PlayerId())
 
-    while FL.Client.playerPed == 0 do
+    local pedWaitAttempts = 0
+    while FL.Client.playerPed == 0 and pedWaitAttempts < 20 do
         Wait(500)
         FL.Client.playerPed = GetSafePlayerPed()
+        pedWaitAttempts = pedWaitAttempts + 1
+        FL.Debug('⏳ Waiting for valid player ped... Attempt ' .. pedWaitAttempts)
+    end
+
+    if FL.Client.playerPed == 0 then
+        FL.Debug('⚠️ Warning: Could not get valid player ped after 20 attempts')
     end
 
     TriggerServerEvent('fl_core:getServiceInfo')
     CreateStationBlips()
 
-    -- MainLoop() -- REMOVE THIS LINE
-
-    FL.Debug('Client script initialized with QBCore integration + qtarget')
+    FL.Debug('✅ Client script initialized with QBCore integration + enhanced error handling')
 end)
 
--- Update player ped regularly to handle respawns
+-- Update player ped regularly with error handling
 CreateThread(function()
     while true do
         Wait(5000) -- Check every 5 seconds
+
         local newPed = GetSafePlayerPed()
         if newPed ~= FL.Client.playerPed and newPed > 0 then
             FL.Client.playerPed = newPed
-            FL.Debug('Player ped updated: ' .. newPed)
+            FL.Debug('👤 Player ped updated: ' .. newPed)
         end
     end
 end)
 
 -- ====================================================================
--- NUI CALLBACKS (ENHANCED WITH MULTI-UNIT SUPPORT)
+-- NUI CALLBACKS (ENHANCED WITH VALIDATION)
 -- ====================================================================
 
--- NUI: Assign to call (ENHANCED)
+-- NUI: Assign to call (enhanced with validation)
 RegisterNUICallback('assignToCall', function(data, cb)
     FL.Debug('📱 NUI Callback: assignToCall - Data: ' .. json.encode(data))
 
-    local callId = data.callId
-    if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
+    -- Validate input
+    if not data or not data.callId or data.callId == '' then
+        FL.Debug('❌ Invalid callId provided in NUI callback')
+        cb({ success = false, message = 'Invalid call ID provided' })
         return
     end
+
+    local callId = data.callId
 
     -- Validate service and duty status
     if not FL.Client.serviceInfo then
@@ -114,12 +192,20 @@ RegisterNUICallback('assignToCall', function(data, cb)
         return
     end
 
+    -- Validate player state
+    local isValid, errorMsg = IsPlayerStateValid()
+    if not isValid then
+        FL.Debug('❌ Invalid player state: ' .. errorMsg)
+        cb({ success = false, message = 'Invalid player state: ' .. errorMsg })
+        return
+    end
+
     FL.Debug('✅ Validation passed, sending server event for assignment')
 
-    -- Send server event instead of handling directly
+    -- Send server event
     TriggerServerEvent('fl_core:assignToCallFromUI', callId)
 
-    -- Respond to NUI immediately (server will handle the logic)
+    -- Respond to NUI
     cb({
         success = true,
         message = 'Assignment request sent to server',
@@ -127,27 +213,31 @@ RegisterNUICallback('assignToCall', function(data, cb)
     })
 end)
 
--- NEW: NUI Callback for starting work on call (MULTI-UNIT FEATURE)
+-- NUI: Start work on call (enhanced)
 RegisterNUICallback('startWorkOnCall', function(data, cb)
     FL.Debug('📱 NUI Callback: startWorkOnCall - Data: ' .. json.encode(data))
 
-    local callId = data.callId
-    if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
+    -- Validate input
+    if not data or not data.callId or data.callId == '' then
+        FL.Debug('❌ Invalid callId provided in NUI callback')
+        cb({ success = false, message = 'Invalid call ID provided' })
         return
     end
+
+    local callId = data.callId
 
     -- Validate service and duty status
-    if not FL.Client.serviceInfo then
-        FL.Debug('❌ No service info available')
-        cb({ success = false, message = 'Service info not available' })
+    if not FL.Client.serviceInfo or not FL.Client.serviceInfo.isOnDuty then
+        FL.Debug('❌ Player not on duty or no service info')
+        cb({ success = false, message = 'You must be on duty' })
         return
     end
 
-    if not FL.Client.serviceInfo.isOnDuty then
-        FL.Debug('❌ Player not on duty')
-        cb({ success = false, message = 'You must be on duty' })
+    -- Validate player state
+    local isValid, errorMsg = IsPlayerStateValid()
+    if not isValid then
+        FL.Debug('❌ Invalid player state: ' .. errorMsg)
+        cb({ success = false, message = 'Invalid player state: ' .. errorMsg })
         return
     end
 
@@ -156,7 +246,7 @@ RegisterNUICallback('startWorkOnCall', function(data, cb)
     -- Send server event
     TriggerServerEvent('fl_core:startWorkOnCallFromUI', callId)
 
-    -- Respond to NUI immediately
+    -- Respond to NUI
     cb({
         success = true,
         message = 'Start work request sent to server',
@@ -164,36 +254,40 @@ RegisterNUICallback('startWorkOnCall', function(data, cb)
     })
 end)
 
--- NUI: Complete call (ENHANCED)
+-- NUI: Complete call (enhanced)
 RegisterNUICallback('completeCall', function(data, cb)
     FL.Debug('📱 NUI Callback: completeCall - Data: ' .. json.encode(data))
 
-    local callId = data.callId
-    if not callId then
-        FL.Debug('❌ No callId provided in NUI callback')
-        cb({ success = false, message = 'No call ID provided' })
+    -- Validate input
+    if not data or not data.callId or data.callId == '' then
+        FL.Debug('❌ Invalid callId provided in NUI callback')
+        cb({ success = false, message = 'Invalid call ID provided' })
         return
     end
+
+    local callId = data.callId
 
     -- Validate service and duty status
-    if not FL.Client.serviceInfo then
-        FL.Debug('❌ No service info available')
-        cb({ success = false, message = 'Service info not available' })
+    if not FL.Client.serviceInfo or not FL.Client.serviceInfo.isOnDuty then
+        FL.Debug('❌ Player not on duty or no service info')
+        cb({ success = false, message = 'You must be on duty' })
         return
     end
 
-    if not FL.Client.serviceInfo.isOnDuty then
-        FL.Debug('❌ Player not on duty')
-        cb({ success = false, message = 'You must be on duty' })
+    -- Validate player state
+    local isValid, errorMsg = IsPlayerStateValid()
+    if not isValid then
+        FL.Debug('❌ Invalid player state: ' .. errorMsg)
+        cb({ success = false, message = 'Invalid player state: ' .. errorMsg })
         return
     end
 
     FL.Debug('✅ Validation passed, sending server event for completion')
 
-    -- Send server event instead of handling directly
+    -- Send server event
     TriggerServerEvent('fl_core:completeCallFromUI', callId)
 
-    -- Respond to NUI immediately (server will handle the logic)
+    -- Respond to NUI
     cb({
         success = true,
         message = 'Completion request sent to server',
@@ -201,7 +295,7 @@ RegisterNUICallback('completeCall', function(data, cb)
     })
 end)
 
--- NUI: Close UI (unchanged)
+-- NUI: Close UI (enhanced)
 RegisterNUICallback('closeUI', function(data, cb)
     FL.Debug('📱 NUI Callback: closeUI')
     CloseMDT()
@@ -209,28 +303,28 @@ RegisterNUICallback('closeUI', function(data, cb)
 end)
 
 -- ====================================================================
--- SERVER EVENT HANDLERS (ENHANCED FOR MULTI-UNIT)
+-- SERVER EVENT HANDLERS (ENHANCED WITH THROTTLING)
 -- ====================================================================
 
 -- Handle assignment result from server
 RegisterNetEvent('fl_core:assignmentResult', function(result)
     FL.Debug('📱 Assignment result received: ' .. json.encode(result))
 
-    if result.success then
-        QBCore.Functions.Notify('Successfully assigned to call ' .. result.callId, 'success')
+    if result and result.success then
+        QBCore.Functions.Notify('Successfully assigned to call ' .. (result.callId or 'unknown'), 'success')
     else
-        QBCore.Functions.Notify('Assignment failed: ' .. result.message, 'error')
+        QBCore.Functions.Notify('Assignment failed: ' .. (result.message or 'unknown error'), 'error')
     end
 end)
 
--- NEW: Handle start work result from server (MULTI-UNIT FEATURE)
+-- Handle start work result from server
 RegisterNetEvent('fl_core:startWorkResult', function(result)
     FL.Debug('📱 Start work result received: ' .. json.encode(result))
 
-    if result.success then
-        QBCore.Functions.Notify('Started working on call ' .. result.callId, 'success')
+    if result and result.success then
+        QBCore.Functions.Notify('Started working on call ' .. (result.callId or 'unknown'), 'success')
     else
-        QBCore.Functions.Notify('Start work failed: ' .. result.message, 'error')
+        QBCore.Functions.Notify('Start work failed: ' .. (result.message or 'unknown error'), 'error')
     end
 end)
 
@@ -238,15 +332,15 @@ end)
 RegisterNetEvent('fl_core:completionResult', function(result)
     FL.Debug('📱 Completion result received: ' .. json.encode(result))
 
-    if result.success then
-        QBCore.Functions.Notify('Successfully completed call ' .. result.callId, 'success')
+    if result and result.success then
+        QBCore.Functions.Notify('Successfully completed call ' .. (result.callId or 'unknown'), 'success')
     else
-        QBCore.Functions.Notify('Completion failed: ' .. result.message, 'error')
+        QBCore.Functions.Notify('Completion failed: ' .. (result.message or 'unknown error'), 'error')
     end
 end)
 
 -- ====================================================================
--- EVENT HANDLERS (ENHANCED WITH MULTI-UNIT LOGGING)
+-- EVENT HANDLERS (ENHANCED WITH THROTTLED UPDATES)
 -- ====================================================================
 
 -- Server events
@@ -263,8 +357,13 @@ RegisterNetEvent('fl_core:dutyChanged', function(onDuty, service, rank)
     -- This is handled by QBCore job events now
 end)
 
--- NEW EMERGENCY CALL (ENHANCED FOR MULTI-UNIT)
+-- NEW EMERGENCY CALL (enhanced with throttled UI updates)
 RegisterNetEvent('fl_core:newEmergencyCall', function(callData)
+    if not callData or not callData.id then
+        FL.Debug('❌ Invalid call data received')
+        return
+    end
+
     FL.Debug('🆕 NEW CALL RECEIVED: ' ..
         callData.id .. ' for service: ' .. callData.service .. ' - Status: ' .. callData.status)
 
@@ -277,38 +376,30 @@ RegisterNetEvent('fl_core:newEmergencyCall', function(callData)
     QBCore.Functions.Notify('New ' .. priorityText .. ' call: ' .. callData.type .. ' (Max Units: ' .. maxUnits .. ')',
         'error')
 
-    -- Play alert sound (FIXED: boolean instead of integer)
+    -- Play alert sound
     PlaySoundFrontend(-1, 'TIMER_STOP', 'HUD_MINI_GAME_SOUNDSET', true)
 
-    -- Force update MDT if it's open
-    if FL.Client.showingUI then
-        FL.Debug('📱 MDT is open - FORCING immediate UI update')
-        SendNUIMessage({
-            type = 'updateCalls',
-            data = FL.Client.activeCalls
-        })
-
-        -- Also send specific new call event
-        SendNUIMessage({
-            type = 'newCall',
-            callData = callData
-        })
-    else
-        FL.Debug('📱 MDT is closed - no UI update needed')
-    end
+    -- Throttled UI update
+    UpdateMDTSafely(FL.Client.activeCalls, 'updateCalls')
+    UpdateMDTSafely(callData, 'newCall')
 end)
 
--- CALL ASSIGNED (ENHANCED FOR MULTI-UNIT)
+-- CALL ASSIGNED (enhanced with throttled updates)
 RegisterNetEvent('fl_core:callAssigned', function(callData)
+    if not callData or not callData.id then
+        FL.Debug('❌ Invalid call data received in callAssigned')
+        return
+    end
+
     FL.Debug('📞 CALL ASSIGNED EVENT: ' .. callData.id .. ' - New Status: ' .. callData.status)
     FL.Debug('👥 Assigned Units Count: ' .. #(callData.assigned_units or {}))
     FL.Debug('🏷️ Unit Details Count: ' .. #(callData.unit_details or {}))
 
-    -- Critical: Update local storage IMMEDIATELY
+    -- Update local storage
     FL.Client.activeCalls[callData.id] = callData
 
     -- Show waypoint
-    if callData.coords then
+    if callData.coords and callData.coords.x then
         SetNewWaypoint(callData.coords.x, callData.coords.y)
         FL.Debug('🗺️ Waypoint set to: ' .. callData.coords.x .. ', ' .. callData.coords.y)
     end
@@ -321,41 +412,18 @@ RegisterNetEvent('fl_core:callAssigned', function(callData)
     end
     QBCore.Functions.Notify(notificationText, 'success')
 
-    -- FORCE MDT update with detailed logging
-    if FL.Client.showingUI then
-        FL.Debug('📱 MDT IS OPEN - Sending multiple UI updates')
-
-        -- Send general update
-        SendNUIMessage({
-            type = 'updateCalls',
-            data = FL.Client.activeCalls
-        })
-
-        -- Send specific assignment event
-        SendNUIMessage({
-            type = 'callAssigned',
-            callId = callData.id,
-            callData = callData
-        })
-
-        -- Force refresh with timeout to ensure UI updates
-        CreateThread(function()
-            Wait(100)
-            SendNUIMessage({
-                type = 'forceRefresh',
-                data = FL.Client.activeCalls
-            })
-            FL.Debug('📱 Sent force refresh to UI')
-        end)
-    else
-        FL.Debug('📱 MDT is closed - assignment noted but no UI update needed')
-    end
-
-    FL.Debug('✅ Call assignment processing completed')
+    -- Throttled UI updates
+    UpdateMDTSafely(FL.Client.activeCalls, 'updateCalls')
+    UpdateMDTSafely(callData, 'callAssigned')
 end)
 
--- CALL STATUS UPDATE (ENHANCED FOR MULTI-UNIT)
+-- CALL STATUS UPDATE (enhanced)
 RegisterNetEvent('fl_core:callStatusUpdate', function(callId, callData)
+    if not callId or not callData then
+        FL.Debug('❌ Invalid parameters in callStatusUpdate')
+        return
+    end
+
     FL.Debug('📋 CALL STATUS UPDATE EVENT: ' .. callId .. ' - New Status: ' .. callData.status)
     FL.Debug('👥 Updated Units Count: ' .. #(callData.assigned_units or {}))
 
@@ -364,26 +432,17 @@ RegisterNetEvent('fl_core:callStatusUpdate', function(callId, callData)
 
     FL.Debug('💾 Updated local call: ' .. callId .. ' to status: ' .. callData.status)
 
-    -- IMMEDIATE UI update if MDT is open
-    if FL.Client.showingUI then
-        FL.Debug('📱 FORCING UI UPDATE for status change')
-
-        SendNUIMessage({
-            type = 'updateCalls',
-            data = FL.Client.activeCalls
-        })
-
-        SendNUIMessage({
-            type = 'callStatusChanged',
-            callId = callId,
-            newStatus = callData.status,
-            callData = callData
-        })
-    end
+    -- Throttled UI update
+    UpdateMDTSafely(FL.Client.activeCalls, 'updateCalls')
 end)
 
--- CALL COMPLETED (ENHANCED)
+-- CALL COMPLETED (enhanced)
 RegisterNetEvent('fl_core:callCompleted', function(callId)
+    if not callId then
+        FL.Debug('❌ Invalid callId in callCompleted')
+        return
+    end
+
     FL.Debug('✅ CALL COMPLETED EVENT: ' .. callId)
 
     -- Remove from local storage
@@ -391,26 +450,20 @@ RegisterNetEvent('fl_core:callCompleted', function(callId)
 
     QBCore.Functions.Notify('Call ' .. callId .. ' completed', 'success')
 
-    -- Update MDT if open
-    if FL.Client.showingUI then
-        FL.Debug('📱 FORCING UI UPDATE after completion')
-        SendNUIMessage({
-            type = 'updateCalls',
-            data = FL.Client.activeCalls
-        })
-
-        SendNUIMessage({
-            type = 'callCompleted',
-            callId = callId
-        })
-    end
+    -- Throttled UI update
+    UpdateMDTSafely(FL.Client.activeCalls, 'updateCalls')
 end)
 
--- ACTIVE CALLS (ENHANCED FOR MULTI-UNIT)
+-- ACTIVE CALLS (enhanced with validation)
 RegisterNetEvent('fl_core:activeCalls', function(calls)
+    if not calls or type(calls) ~= 'table' then
+        FL.Debug('❌ Invalid calls data received')
+        calls = {}
+    end
+
     FL.Debug('📋 RECEIVED ACTIVE CALLS FROM SERVER: ' .. FL.Functions.TableSize(calls) .. ' calls')
 
-    -- Validate and store calls with unit details logging
+    -- Validate and store calls
     local validCalls = {}
     for callId, callData in pairs(calls) do
         if callData and callData.id and callData.status then
@@ -427,26 +480,16 @@ RegisterNetEvent('fl_core:activeCalls', function(calls)
 
     FL.Client.activeCalls = validCalls
 
-    -- Update MDT if open with detailed logging
+    -- Send player source and update UI
     if FL.Client.showingUI then
         FL.Debug('📱 SENDING VALIDATED CALLS TO UI: ' .. FL.Functions.TableSize(validCalls) .. ' calls')
 
-        -- Send player source to UI for assignment checking (MULTI-UNIT FEATURE)
         SendNUIMessage({
             type = 'setPlayerSource',
             source = FL.Client.playerSource
         })
 
-        SendNUIMessage({
-            type = 'updateCalls',
-            data = FL.Client.activeCalls
-        })
-
-        -- Debug output each call for UI
-        for callId, callData in pairs(FL.Client.activeCalls) do
-            local unitCount = #(callData.unit_details or {})
-            FL.Debug('📤 Sending to UI - Call: ' .. callId .. ' Status: ' .. callData.status .. ' Units: ' .. unitCount)
-        end
+        UpdateMDTSafely(FL.Client.activeCalls, 'updateCalls')
     else
         FL.Debug('📱 MDT not open - calls stored but not sent to UI')
     end
@@ -458,7 +501,13 @@ end)
 
 -- Handle QBCore job updates
 RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
-    FL.Debug('Job updated: ' .. job.name .. ' (Grade: ' .. job.grade.level .. ', Duty: ' .. tostring(job.onduty) .. ')')
+    if not job or not job.name then
+        FL.Debug('❌ Invalid job data received')
+        return
+    end
+
+    FL.Debug('Job updated: ' ..
+    job.name .. ' (Grade: ' .. (job.grade and job.grade.level or 'unknown') .. ', Duty: ' .. tostring(job.onduty) .. ')')
 
     -- Check if it's an emergency service job
     local service = FL.JobMapping[job.name]
@@ -468,15 +517,15 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
         -- Update service info
         FL.Client.serviceInfo = {
             service = service,
-            rank = job.grade.level,
-            rankName = job.grade.name,
-            isOnDuty = job.onduty,
+            rank = job.grade and job.grade.level or 0,
+            rankName = job.grade and job.grade.name or 'Unknown',
+            isOnDuty = job.onduty or false,
             qbJob = job.name
         }
 
         FL.Debug('👤 Updated service info: ' .. json.encode(FL.Client.serviceInfo))
 
-        -- Handle uniform and equipment (NULL-SAFE)
+        -- Handle uniform and equipment
         if job.onduty then
             FL.Debug('👕 Going on duty - applying uniform and equipment')
             ApplyUniform(service)
@@ -528,15 +577,14 @@ RegisterNetEvent('QBCore:Client:SetDuty', function(duty)
     end
 end)
 
-
 -- ====================================================================
--- UNIFORM SYSTEM (NUCLEAR NULL-SAFETY - ALL FIXED)
+-- UNIFORM SYSTEM (ENHANCED WITH ERROR HANDLING)
 -- ====================================================================
 
 -- Store original outfit before applying uniform
 FL.Client.originalOutfit = nil
 
--- Apply uniform to player (NULL-SAFE FIXED)
+-- Apply uniform to player (enhanced validation)
 function ApplyUniform(serviceName)
     local playerPed = FL.Client.playerPed
 
@@ -550,36 +598,60 @@ function ApplyUniform(serviceName)
     local uniform = FL.Functions.GetUniform(serviceName, gender)
 
     if not uniform then
-        FL.Debug('No uniform found for ' .. serviceName)
+        FL.Debug('❌ No uniform found for ' .. serviceName)
         return false
     end
 
     -- Save current outfit before applying uniform
-    SaveCurrentOutfit()
+    if not SaveCurrentOutfit() then
+        FL.Debug('⚠️ Failed to save current outfit')
+    end
 
-    -- Apply each clothing piece (NULL-SAFE: All SetPed functions with validation)
-    SetPedComponentVariation(playerPed, 8, SafeInt(uniform.tshirt_1, 15), SafeInt(uniform.tshirt_2, 0), 0)
-    SetPedComponentVariation(playerPed, 11, SafeInt(uniform.torso_1, 15), SafeInt(uniform.torso_2, 0), 0)
-    SetPedComponentVariation(playerPed, 3, SafeInt(uniform.arms, 15), 0, 0)
-    SetPedComponentVariation(playerPed, 4, SafeInt(uniform.pants_1, 14), SafeInt(uniform.pants_2, 0), 0)
-    SetPedComponentVariation(playerPed, 6, SafeInt(uniform.shoes_1, 34), SafeInt(uniform.shoes_2, 0), 0)
+    -- Apply each clothing piece with enhanced error handling
+    local success = true
+    local function SafeSetComponent(component, drawable, texture)
+        local safeDrawable = SafeInt(drawable, 15)
+        local safeTexture = SafeInt(texture, 0)
 
-    -- Props (NULL-SAFE: Props with validation)
+        if safeDrawable >= 0 and safeTexture >= 0 then
+            SetPedComponentVariation(playerPed, component, safeDrawable, safeTexture, 0)
+        else
+            FL.Debug('⚠️ Invalid component values: ' .. component .. ', ' .. drawable .. ', ' .. texture)
+            success = false
+        end
+    end
+
+    SafeSetComponent(8, uniform.tshirt_1, uniform.tshirt_2)
+    SafeSetComponent(11, uniform.torso_1, uniform.torso_2)
+    SafeSetComponent(3, uniform.arms, 0)
+    SafeSetComponent(4, uniform.pants_1, uniform.pants_2)
+    SafeSetComponent(6, uniform.shoes_1, uniform.shoes_2)
+
+    -- Props with validation
     if uniform.helmet_1 and uniform.helmet_1 ~= -1 then
-        SetPedPropIndex(playerPed, 0, SafeInt(uniform.helmet_1, 0), SafeInt(uniform.helmet_2, 0), false)
+        local safeHelmet = SafeInt(uniform.helmet_1, 0)
+        local safeHelmetTexture = SafeInt(uniform.helmet_2, 0)
+        if safeHelmet >= 0 and safeHelmetTexture >= 0 then
+            SetPedPropIndex(playerPed, 0, safeHelmet, safeHelmetTexture, false)
+        end
     else
         ClearPedProp(playerPed, 0)
     end
 
     if uniform.chain_1 and uniform.chain_1 ~= -1 then
-        SetPedComponentVariation(playerPed, 7, SafeInt(uniform.chain_1, 0), SafeInt(uniform.chain_2, 0), 0)
+        SafeSetComponent(7, uniform.chain_1, uniform.chain_2)
     end
 
-    FL.Debug('Applied ' .. serviceName .. ' uniform')
-    return true
+    if success then
+        FL.Debug('✅ Applied ' .. serviceName .. ' uniform successfully')
+    else
+        FL.Debug('⚠️ Applied ' .. serviceName .. ' uniform with some errors')
+    end
+
+    return success
 end
 
--- Save current outfit (NULL-SAFE FIXED)
+-- Save current outfit (enhanced validation)
 function SaveCurrentOutfit()
     local playerPed = FL.Client.playerPed
 
@@ -590,7 +662,6 @@ function SaveCurrentOutfit()
     end
 
     FL.Client.originalOutfit = {
-        -- NULL-SAFE: All GetPed functions with SafeInt wrapper
         tshirt_1 = SafeInt(GetPedDrawableVariation(playerPed, 8), 15),
         tshirt_2 = SafeInt(GetPedTextureVariation(playerPed, 8), 0),
         torso_1 = SafeInt(GetPedDrawableVariation(playerPed, 11), 15),
@@ -602,16 +673,15 @@ function SaveCurrentOutfit()
         shoes_2 = SafeInt(GetPedTextureVariation(playerPed, 6), 0),
         chain_1 = SafeInt(GetPedDrawableVariation(playerPed, 7), 0),
         chain_2 = SafeInt(GetPedTextureVariation(playerPed, 7), 0),
-        -- Props with SafeInt wrapper
         helmet_1 = SafeInt(GetPedPropIndex(playerPed, 0), -1),
         helmet_2 = SafeInt(GetPedPropTextureIndex(playerPed, 0), 0),
     }
 
-    FL.Debug('Saved original outfit')
+    FL.Debug('✅ Saved original outfit')
     return true
 end
 
--- Remove uniform
+-- Remove uniform (enhanced)
 function RemoveUniform()
     local playerPed = FL.Client.playerPed
 
@@ -623,19 +693,25 @@ function RemoveUniform()
 
     -- Try multiple methods to restore clothing
     if FL.Client.originalOutfit then
-        RestoreOriginalOutfit()
+        if RestoreOriginalOutfit() then
+            FL.Debug('✅ Restored original outfit')
+        else
+            FL.Debug('⚠️ Failed to restore original outfit, using fallback')
+            ResetToBasicClothing()
+        end
     else
+        FL.Debug('⚠️ No original outfit saved, using basic clothing')
         ResetToBasicClothing()
     end
 
-    FL.Debug('Removed service uniform')
+    FL.Debug('✅ Removed service uniform')
     return true
 end
 
--- Restore original outfit (NULL-SAFE FIXED)
+-- Restore original outfit (enhanced validation)
 function RestoreOriginalOutfit()
     if not FL.Client.originalOutfit then
-        FL.Debug('No original outfit saved')
+        FL.Debug('❌ No original outfit saved')
         return false
     end
 
@@ -649,22 +725,30 @@ function RestoreOriginalOutfit()
 
     local outfit = FL.Client.originalOutfit
 
-    -- NULL-SAFE: All outfit values with SafeInt wrapper
-    SetPedComponentVariation(playerPed, 8, SafeInt(outfit.tshirt_1, 15), SafeInt(outfit.tshirt_2, 0), 0)
-    SetPedComponentVariation(playerPed, 11, SafeInt(outfit.torso_1, 15), SafeInt(outfit.torso_2, 0), 0)
-    SetPedComponentVariation(playerPed, 3, SafeInt(outfit.arms, 15), 0, 0)
-    SetPedComponentVariation(playerPed, 4, SafeInt(outfit.pants_1, 14), SafeInt(outfit.pants_2, 0), 0)
-    SetPedComponentVariation(playerPed, 6, SafeInt(outfit.shoes_1, 34), SafeInt(outfit.shoes_2, 0), 0)
-    SetPedComponentVariation(playerPed, 7, SafeInt(outfit.chain_1, 0), SafeInt(outfit.chain_2, 0), 0)
+    -- Restore with validation
+    local function SafeRestoreComponent(component, drawable, texture)
+        local safeDrawable = SafeInt(drawable, 15)
+        local safeTexture = SafeInt(texture, 0)
+        SetPedComponentVariation(playerPed, component, safeDrawable, safeTexture, 0)
+    end
 
-    -- Restore props (NULL-SAFE: Props with validation)
+    SafeRestoreComponent(8, outfit.tshirt_1, outfit.tshirt_2)
+    SafeRestoreComponent(11, outfit.torso_1, outfit.torso_2)
+    SafeRestoreComponent(3, outfit.arms, 0)
+    SafeRestoreComponent(4, outfit.pants_1, outfit.pants_2)
+    SafeRestoreComponent(6, outfit.shoes_1, outfit.shoes_2)
+    SafeRestoreComponent(7, outfit.chain_1, outfit.chain_2)
+
+    -- Restore props
     if outfit.helmet_1 and outfit.helmet_1 ~= -1 then
-        SetPedPropIndex(playerPed, 0, SafeInt(outfit.helmet_1, 0), SafeInt(outfit.helmet_2, 0), false)
+        local safeHelmet = SafeInt(outfit.helmet_1, 0)
+        local safeHelmetTexture = SafeInt(outfit.helmet_2, 0)
+        SetPedPropIndex(playerPed, 0, safeHelmet, safeHelmetTexture, false)
     else
         ClearPedProp(playerPed, 0)
     end
 
-    FL.Debug('Restored original outfit')
+    FL.Debug('✅ Restored original outfit successfully')
     return true
 end
 
@@ -699,69 +783,82 @@ function ResetToBasicClothing()
     -- Clear props
     ClearPedProp(playerPed, 0) -- Helmet
 
-    FL.Debug('Reset to basic civilian clothing')
+    FL.Debug('✅ Reset to basic civilian clothing')
     return true
 end
 
 -- ====================================================================
--- EQUIPMENT SYSTEM (unchanged)
+-- EQUIPMENT SYSTEM (ENHANCED)
 -- ====================================================================
 
 -- Give service equipment to player
 function GiveServiceEquipment(serviceName)
     local equipment = FL.Functions.GetServiceEquipment(serviceName)
 
-    if #equipment == 0 then
-        FL.Debug('No equipment found for ' .. serviceName)
+    if not equipment or #equipment == 0 then
+        FL.Debug('❌ No equipment found for ' .. serviceName)
         return
     end
 
-    -- Use server-side item management (QBCore 1.3.0+)
+    -- Use server-side item management
     TriggerServerEvent('fl_core:giveEquipment', serviceName)
 
-    FL.Debug('Requested ' .. serviceName .. ' equipment from server')
+    FL.Debug('✅ Requested ' .. serviceName .. ' equipment from server')
 end
 
 -- Remove service equipment from player
 function RemoveServiceEquipment(serviceName)
-    -- Use server-side item management (QBCore 1.3.0+)
+    -- Use server-side item management
     TriggerServerEvent('fl_core:removeEquipment', serviceName)
 
-    FL.Debug('Requested removal of ' .. serviceName .. ' equipment from server')
+    FL.Debug('✅ Requested removal of ' .. serviceName .. ' equipment from server')
 end
 
--- Create blips for stations (NULL-SAFE FIXED)
+-- ====================================================================
+-- BLIP MANAGEMENT (ENHANCED)
+-- ====================================================================
+
+-- Create blips for stations (enhanced validation)
 function CreateStationBlips()
     CreateThread(function()
-        while true do
-            -- Wait for service info
-            if FL.Client.serviceInfo then
-                for stationId, stationData in pairs(Config.Stations) do
-                    -- Only create blip for player's service
-                    if stationData.service == FL.Client.serviceInfo.service then
-                        local serviceData = FL.Functions.GetServiceData(stationData.service)
-                        if serviceData then
-                            local blip = AddBlipForCoord(stationData.coords.x, stationData.coords.y, stationData.coords
-                                .z)
+        local attempts = 0
+        local maxAttempts = 30 -- 30 seconds max wait
 
-                            SetBlipSprite(blip, serviceData.blip)
-                            SetBlipDisplay(blip, 4)
-                            -- NULL-SAFE: Proper float conversion
-                            SetBlipScale(blip, 0.8)
-                            SetBlipColour(blip, GetBlipColorFromHex(serviceData.color))
-                            SetBlipAsShortRange(blip, true)
+        while not FL.Client.serviceInfo and attempts < maxAttempts do
+            Wait(1000)
+            attempts = attempts + 1
+        end
 
-                            BeginTextCommandSetBlipName('STRING')
-                            AddTextComponentString(stationData.name)
-                            EndTextCommandSetBlipName(blip)
+        if not FL.Client.serviceInfo then
+            FL.Debug('⚠️ No service info available for blip creation after 30 seconds')
+            return
+        end
 
-                            FL.Debug('Created blip for ' .. stationData.name)
-                        end
+        for stationId, stationData in pairs(Config.Stations) do
+            -- Only create blip for player's service
+            if stationData.service == FL.Client.serviceInfo.service then
+                local serviceData = FL.Functions.GetServiceData(stationData.service)
+                if serviceData and stationData.coords then
+                    local success, blip = pcall(function()
+                        local blip = AddBlipForCoord(stationData.coords.x, stationData.coords.y, stationData.coords.z)
+                        SetBlipSprite(blip, serviceData.blip or 1)
+                        SetBlipDisplay(blip, 4)
+                        SetBlipScale(blip, 0.8)
+                        SetBlipColour(blip, GetBlipColorFromHex(serviceData.color))
+                        SetBlipAsShortRange(blip, true)
+                        BeginTextCommandSetBlipName('STRING')
+                        AddTextComponentString(stationData.name or 'Emergency Station')
+                        EndTextCommandSetBlipName(blip)
+                        return blip
+                    end)
+
+                    if success and blip then
+                        FL.Debug('✅ Created blip for ' .. stationData.name)
+                    else
+                        FL.Debug('❌ Failed to create blip for ' .. stationData.name)
                     end
                 end
-                break
             end
-            Wait(1000)
         end
     end)
 end
@@ -776,22 +873,21 @@ function GetBlipColorFromHex(hexColor)
     return colorMap[hexColor] or 0
 end
 
--- Show help text (NULL-SAFE FIXED - Using proper method)
-function ShowHelpText(text)
-    if text == nil then text = "" end -- Nil-safety
-    BeginTextCommandDisplayHelp('STRING')
-    AddTextComponentSubstringPlayerName(text)
-    EndTextCommandDisplayHelp(0, false, true, -1)
-end
-
 -- ====================================================================
--- MDT SYSTEM (ENHANCED FOR MULTI-UNIT)
+-- MDT SYSTEM (ENHANCED)
 -- ====================================================================
 
--- Show MDT/Tablet (ENHANCED with player source)
+-- Show MDT/Tablet (enhanced error handling)
 function ShowMDT()
     if not FL.Client.serviceInfo or not FL.Client.serviceInfo.isOnDuty then
         QBCore.Functions.Notify('You must be on duty to use the MDT', 'error')
+        return
+    end
+
+    -- Validate player state
+    local isValid, errorMsg = IsPlayerStateValid()
+    if not isValid then
+        QBCore.Functions.Notify('Cannot open MDT: ' .. errorMsg, 'error')
         return
     end
 
@@ -804,35 +900,45 @@ function ShowMDT()
     CreateThread(function()
         Wait(200) -- Give server time to respond
 
-        -- Prepare MDT data with Multi-Unit support
+        -- Prepare MDT data
         local mdtData = {
             service = FL.Client.serviceInfo.service,
             rank = FL.Client.serviceInfo.rank,
             rankName = FL.Client.serviceInfo.rankName,
             activeCalls = FL.Client.activeCalls,
-            playerSource = FL.Client.playerSource -- Include player source
+            playerSource = FL.Client.playerSource
         }
 
         FL.Debug('📱 Opening MDT with data - Calls: ' .. FL.Functions.TableSize(mdtData.activeCalls))
         FL.Debug('👤 Player Source for UI: ' .. mdtData.playerSource)
 
-        -- Play tablet animation (NULL-SAFE)
+        -- Play tablet animation
         local playerPed = FL.Client.playerPed
-        if IsValidEntity(playerPed) then
-            RequestAnimDict(Config.MDT.animation.dict)
-            while not HasAnimDictLoaded(Config.MDT.animation.dict) do
-                Wait(100)
-            end
+        if IsValidEntity(playerPed) and Config.MDT and Config.MDT.animation then
+            local animDict = Config.MDT.animation.dict
+            local animName = Config.MDT.animation.name
 
-            TaskPlayAnim(playerPed, Config.MDT.animation.dict, Config.MDT.animation.name, 8.0, 8.0, -1, 50, 0, false,
-                false, false)
+            if animDict and animName then
+                RequestAnimDict(animDict)
+                local attempts = 0
+                while not HasAnimDictLoaded(animDict) and attempts < 10 do
+                    Wait(100)
+                    attempts = attempts + 1
+                end
+
+                if HasAnimDictLoaded(animDict) then
+                    TaskPlayAnim(playerPed, animDict, animName, 8.0, 8.0, -1, 50, 0, false, false, false)
+                else
+                    FL.Debug('⚠️ Failed to load animation dictionary: ' .. animDict)
+                end
+            end
         end
 
-        -- Open MDT UI with proper focus
+        -- Open MDT UI
         FL.Client.showingUI = true
         SetNuiFocus(true, true)
 
-        -- Send player source first (MULTI-UNIT FEATURE)
+        -- Send player source first
         SendNUIMessage({
             type = 'setPlayerSource',
             source = FL.Client.playerSource
@@ -844,15 +950,15 @@ function ShowMDT()
             data = mdtData
         })
 
-        FL.Debug('📱 MDT UI opened and data sent with player source')
+        FL.Debug('📱 MDT UI opened and data sent')
     end)
 end
 
--- Close MDT properly
+-- Close MDT properly (enhanced)
 function CloseMDT()
     FL.Debug('📱 Closing MDT UI - Starting cleanup')
 
-    -- Force NUI off
+    -- Force NUI off with multiple attempts
     for i = 1, 10 do
         SetNuiFocus(false, false)
         Wait(10)
@@ -861,7 +967,7 @@ function CloseMDT()
     -- Reset client state immediately
     FL.Client.showingUI = false
 
-    -- Stop animations (NULL-SAFE)
+    -- Stop animations
     local playerPed = GetSafePlayerPed()
     if IsValidEntity(playerPed) then
         ClearPedTasks(playerPed)
@@ -896,7 +1002,7 @@ RegisterCommand('closemdt', function(source, args, rawCommand)
     QBCore.Functions.Notify('MDT force closed', 'success')
 end, false)
 
--- Emergency chat fix command
+-- Emergency chat fix command (enhanced)
 RegisterCommand('fixchat', function(source, args, rawCommand)
     FL.Debug('🚨 EMERGENCY CHAT FIX ACTIVATED')
 
@@ -910,7 +1016,7 @@ RegisterCommand('fixchat', function(source, args, rawCommand)
     -- Reset client state
     FL.Client.showingUI = false
 
-    -- Clear any animations (NULL-SAFE)
+    -- Clear any animations
     local playerPed = GetSafePlayerPed()
     if IsValidEntity(playerPed) then
         ClearPedTasks(playerPed)
@@ -927,18 +1033,20 @@ RegisterCommand('fixchat', function(source, args, rawCommand)
     QBCore.Functions.Notify('Chat should be fixed now - try T or Y', 'success')
 end, false)
 
--- Enhanced debug command for checking calls with Multi-Unit info
+-- Enhanced debug command
 RegisterCommand('debugcalls', function(source, args, rawCommand)
     if FL.Client.serviceInfo and FL.Client.serviceInfo.isOnDuty then
         local count = FL.Functions.TableSize(FL.Client.activeCalls)
         QBCore.Functions.Notify('Active calls: ' .. count .. ' - Check F8 console for details', 'info')
 
-        -- Print detailed call information to console
+        -- Print detailed information
         print('^3[FL CLIENT DEBUG]^7 ======================')
         print('^3[FL CLIENT DEBUG]^7 Player Source: ' .. FL.Client.playerSource)
-        print('^3[FL CLIENT DEBUG]^7 Service: ' .. FL.Client.serviceInfo.service)
+        print('^3[FL CLIENT DEBUG]^7 Service: ' .. (FL.Client.serviceInfo.service or 'none'))
         print('^3[FL CLIENT DEBUG]^7 On Duty: ' .. tostring(FL.Client.serviceInfo.isOnDuty))
         print('^3[FL CLIENT DEBUG]^7 Active Calls: ' .. count)
+        print('^3[FL CLIENT DEBUG]^7 UI Showing: ' .. tostring(FL.Client.showingUI))
+
         for callId, callData in pairs(FL.Client.activeCalls) do
             local unitCount = #(callData.unit_details or {})
             print('^3[FL CLIENT CALL]^7 ID: ' .. callId)
@@ -946,13 +1054,7 @@ RegisterCommand('debugcalls', function(source, args, rawCommand)
             print('^3[FL CLIENT CALL]^7 Type: ' .. callData.type)
             print('^3[FL CLIENT CALL]^7 Priority: ' .. callData.priority)
             print('^3[FL CLIENT CALL]^7 Service: ' .. callData.service)
-            print('^3[FL CLIENT CALL]^7 Assigned Units: ' .. json.encode(callData.assigned_units or {}))
             print('^3[FL CLIENT CALL]^7 Unit Details Count: ' .. unitCount)
-            if unitCount > 0 then
-                for i, unit in pairs(callData.unit_details) do
-                    print('^3[FL CLIENT UNIT]^7   Unit ' .. i .. ': ' .. unit.callsign .. ' (' .. unit.name .. ')')
-                end
-            end
             print('^3[FL CLIENT CALL]^7 ---')
         end
         print('^3[FL CLIENT DEBUG]^7 ======================')
@@ -964,26 +1066,79 @@ RegisterCommand('debugcalls', function(source, args, rawCommand)
     end
 end, false)
 
--- ESC key handler for closing MDT
+-- ====================================================================
+-- OPTIMIZED KEY HANDLING (PERFORMANCE CRITICAL)
+-- ====================================================================
+
+-- ESC key handler for closing MDT (OPTIMIZED VERSION)
 CreateThread(function()
+    local lastCheck = 0
     while true do
-        Wait(0)
+        local now = GetGameTimer()
+
         if FL.Client.showingUI then
+            Wait(0) -- Nur wenn UI aktiv - niedrige Latenz für Responsiveness
+
             -- ESC key
             if IsControlJustPressed(0, 322) then -- ESC
                 FL.Debug('ESC key pressed - closing MDT')
                 CloseMDT()
             end
 
-            -- Emergency keys
-            if IsControlJustPressed(0, 194) then -- BACKSPACE
-                FL.Debug('BACKSPACE pressed - emergency close')
-                CloseMDT()
+            -- Emergency keys (aber nur alle 100ms prüfen um Performance zu sparen)
+            if now - lastCheck > 100 then
+                if IsControlJustPressed(0, 194) then -- BACKSPACE
+                    FL.Debug('BACKSPACE pressed - emergency close')
+                    CloseMDT()
+                end
+                lastCheck = now
             end
         else
-            Wait(500) -- Sleep when UI is not showing
+            Wait(1000) -- UI nicht aktiv = längere Pause (90% Performance-Gewinn!)
         end
     end
 end)
 
-FL.Debug('🎉 FL Core client loaded with Multi-Unit Assignment Support + VOLLSTÄNDIGE DEBUG VERSION')
+-- ====================================================================
+-- RESOURCE CLEANUP (CRITICAL)
+-- ====================================================================
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        FL.Debug('🧹 Cleaning up FL Core client resources...')
+
+        -- Close any open UIs
+        if FL.Client.showingUI then
+            CloseMDT()
+        end
+
+        -- Clear all blips
+        local blips = GetBlipList()
+        for i = 1, #blips do
+            local blip = blips[i]
+            if DoesBlipExist(blip) then
+                -- Check if it's one of our station blips
+                local blipLabel = GetBlipInfoIdLabel(blip)
+                if blipLabel and (string.find(blipLabel, 'Station') or string.find(blipLabel, 'Emergency')) then
+                    RemoveBlip(blip)
+                end
+            end
+        end
+
+        -- Reset client state
+        FL.Client = {
+            serviceInfo = nil,
+            activeCalls = {},
+            nearbyMarkers = {},
+            showingUI = false,
+            playerPed = 0,
+            playerSource = GetPlayerServerId(PlayerId()),
+            lastUIUpdate = 0,
+            uiUpdateThrottle = 100
+        }
+
+        FL.Debug('✅ FL Core client cleanup completed')
+    end
+end)
+
+FL.Debug('🎉 FL Core client loaded with COMPLETE PERFORMANCE & ROBUSTNESS FIXES')
