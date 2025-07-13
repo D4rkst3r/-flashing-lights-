@@ -1,17 +1,18 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - CLIENT MAIN (VOLLSTÄNDIGE DEBUG VERSION)
--- KOMPLETT NEUE VERSION MIT AUSFÜHRLICHEM DEBUGGING
+-- FLASHING LIGHTS EMERGENCY SERVICES - CLIENT MAIN (MULTI-UNIT + VOLLSTÄNDIGE DEBUG VERSION)
+-- BASIERT AUF DEINER DEBUG VERSION + MULTI-UNIT FEATURES
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
 
--- Client state variables (nil-safe initialized)
+-- Client state variables (nil-safe initialized + Multi-Unit Support)
 FL.Client = {
-    serviceInfo = nil,  -- Current service info from server
-    activeCalls = {},   -- Active emergency calls
-    nearbyMarkers = {}, -- Nearby station markers
-    showingUI = false,  -- UI state
-    playerPed = 0       -- Initialize as 0 instead of nil
+    serviceInfo = nil,                           -- Current service info from server
+    activeCalls = {},                            -- Active emergency calls
+    nearbyMarkers = {},                          -- Nearby station markers
+    showingUI = false,                           -- UI state
+    playerPed = 0,                               -- Initialize as 0 instead of nil
+    playerSource = GetPlayerServerId(PlayerId()) -- Player's server ID for Multi-Unit
 }
 
 -- Job to service mapping (same as server)
@@ -48,7 +49,7 @@ local function IsValidEntity(entity)
 end
 
 -- ====================================================================
--- INITIALIZATION
+-- INITIALIZATION (ENHANCED)
 -- ====================================================================
 
 CreateThread(function()
@@ -59,6 +60,9 @@ CreateThread(function()
 
     -- Initialize player data with validation
     FL.Client.playerPed = GetSafePlayerPed()
+    FL.Client.playerSource = GetPlayerServerId(PlayerId())
+
+    FL.Debug('🆔 Player Source ID: ' .. FL.Client.playerSource)
 
     -- Wait for valid player ped
     while FL.Client.playerPed == 0 do
@@ -75,7 +79,7 @@ CreateThread(function()
     -- Start main loop
     MainLoop()
 
-    FL.Debug('Client script initialized with QBCore integration')
+    FL.Debug('Client script initialized with QBCore integration + Multi-Unit Support')
 end)
 
 -- Update player ped regularly to handle respawns
@@ -91,10 +95,10 @@ CreateThread(function()
 end)
 
 -- ====================================================================
--- NUI CALLBACKS (FIXED - Jetzt korrekt im Client registriert)
+-- NUI CALLBACKS (ENHANCED WITH MULTI-UNIT SUPPORT)
 -- ====================================================================
 
--- NUI: Assign to call (FIXED - sendet Server Event)
+-- NUI: Assign to call (ENHANCED)
 RegisterNUICallback('assignToCall', function(data, cb)
     FL.Debug('📱 NUI Callback: assignToCall - Data: ' .. json.encode(data))
 
@@ -104,6 +108,21 @@ RegisterNUICallback('assignToCall', function(data, cb)
         cb({ success = false, message = 'No call ID provided' })
         return
     end
+
+    -- Validate service and duty status
+    if not FL.Client.serviceInfo then
+        FL.Debug('❌ No service info available')
+        cb({ success = false, message = 'Service info not available' })
+        return
+    end
+
+    if not FL.Client.serviceInfo.isOnDuty then
+        FL.Debug('❌ Player not on duty')
+        cb({ success = false, message = 'You must be on duty' })
+        return
+    end
+
+    FL.Debug('✅ Validation passed, sending server event for assignment')
 
     -- Send server event instead of handling directly
     TriggerServerEvent('fl_core:assignToCallFromUI', callId)
@@ -116,7 +135,44 @@ RegisterNUICallback('assignToCall', function(data, cb)
     })
 end)
 
--- NUI: Complete call (FIXED - sendet Server Event)
+-- NEW: NUI Callback for starting work on call (MULTI-UNIT FEATURE)
+RegisterNUICallback('startWorkOnCall', function(data, cb)
+    FL.Debug('📱 NUI Callback: startWorkOnCall - Data: ' .. json.encode(data))
+
+    local callId = data.callId
+    if not callId then
+        FL.Debug('❌ No callId provided in NUI callback')
+        cb({ success = false, message = 'No call ID provided' })
+        return
+    end
+
+    -- Validate service and duty status
+    if not FL.Client.serviceInfo then
+        FL.Debug('❌ No service info available')
+        cb({ success = false, message = 'Service info not available' })
+        return
+    end
+
+    if not FL.Client.serviceInfo.isOnDuty then
+        FL.Debug('❌ Player not on duty')
+        cb({ success = false, message = 'You must be on duty' })
+        return
+    end
+
+    FL.Debug('✅ Validation passed, sending server event for start work')
+
+    -- Send server event
+    TriggerServerEvent('fl_core:startWorkOnCallFromUI', callId)
+
+    -- Respond to NUI immediately
+    cb({
+        success = true,
+        message = 'Start work request sent to server',
+        callId = callId
+    })
+end)
+
+-- NUI: Complete call (ENHANCED)
 RegisterNUICallback('completeCall', function(data, cb)
     FL.Debug('📱 NUI Callback: completeCall - Data: ' .. json.encode(data))
 
@@ -126,6 +182,21 @@ RegisterNUICallback('completeCall', function(data, cb)
         cb({ success = false, message = 'No call ID provided' })
         return
     end
+
+    -- Validate service and duty status
+    if not FL.Client.serviceInfo then
+        FL.Debug('❌ No service info available')
+        cb({ success = false, message = 'Service info not available' })
+        return
+    end
+
+    if not FL.Client.serviceInfo.isOnDuty then
+        FL.Debug('❌ Player not on duty')
+        cb({ success = false, message = 'You must be on duty' })
+        return
+    end
+
+    FL.Debug('✅ Validation passed, sending server event for completion')
 
     -- Send server event instead of handling directly
     TriggerServerEvent('fl_core:completeCallFromUI', callId)
@@ -146,7 +217,7 @@ RegisterNUICallback('closeUI', function(data, cb)
 end)
 
 -- ====================================================================
--- NEW SERVER EVENT HANDLERS (für Responses von Server)
+-- SERVER EVENT HANDLERS (ENHANCED FOR MULTI-UNIT)
 -- ====================================================================
 
 -- Handle assignment result from server
@@ -157,6 +228,17 @@ RegisterNetEvent('fl_core:assignmentResult', function(result)
         QBCore.Functions.Notify('Successfully assigned to call ' .. result.callId, 'success')
     else
         QBCore.Functions.Notify('Assignment failed: ' .. result.message, 'error')
+    end
+end)
+
+-- NEW: Handle start work result from server (MULTI-UNIT FEATURE)
+RegisterNetEvent('fl_core:startWorkResult', function(result)
+    FL.Debug('📱 Start work result received: ' .. json.encode(result))
+
+    if result.success then
+        QBCore.Functions.Notify('Started working on call ' .. result.callId, 'success')
+    else
+        QBCore.Functions.Notify('Start work failed: ' .. result.message, 'error')
     end
 end)
 
@@ -172,13 +254,16 @@ RegisterNetEvent('fl_core:completionResult', function(result)
 end)
 
 -- ====================================================================
--- EVENT HANDLERS (FIXED with better Call Management)
+-- EVENT HANDLERS (ENHANCED WITH MULTI-UNIT LOGGING)
 -- ====================================================================
 
 -- Server events
 RegisterNetEvent('fl_core:serviceInfo', function(serviceInfo)
     FL.Client.serviceInfo = serviceInfo
     FL.Debug('✅ Received service info: ' .. (serviceInfo and serviceInfo.service or 'none'))
+    if serviceInfo then
+        FL.Debug('👤 Service details: ' .. json.encode(serviceInfo))
+    end
 end)
 
 RegisterNetEvent('fl_core:dutyChanged', function(onDuty, service, rank)
@@ -186,7 +271,7 @@ RegisterNetEvent('fl_core:dutyChanged', function(onDuty, service, rank)
     -- This is handled by QBCore job events now
 end)
 
--- NEW EMERGENCY CALL (FIXED: Boolean parameter)
+-- NEW EMERGENCY CALL (ENHANCED FOR MULTI-UNIT)
 RegisterNetEvent('fl_core:newEmergencyCall', function(callData)
     FL.Debug('🆕 NEW CALL RECEIVED: ' ..
         callData.id .. ' for service: ' .. callData.service .. ' - Status: ' .. callData.status)
@@ -194,9 +279,11 @@ RegisterNetEvent('fl_core:newEmergencyCall', function(callData)
     -- Store call in local storage
     FL.Client.activeCalls[callData.id] = callData
 
-    -- Show notification
+    -- Show notification with enhanced info
     local priorityText = FL.Functions.FormatPriority(callData.priority)
-    QBCore.Functions.Notify('New ' .. priorityText .. ' call: ' .. callData.type, 'error')
+    local maxUnits = callData.max_units or 4
+    QBCore.Functions.Notify('New ' .. priorityText .. ' call: ' .. callData.type .. ' (Max Units: ' .. maxUnits .. ')',
+        'error')
 
     -- Play alert sound (FIXED: boolean instead of integer)
     PlaySoundFrontend(-1, 'TIMER_STOP', 'HUD_MINI_GAME_SOUNDSET', true)
@@ -219,9 +306,11 @@ RegisterNetEvent('fl_core:newEmergencyCall', function(callData)
     end
 end)
 
--- CALL ASSIGNED (COMPLETELY REWRITTEN)
+-- CALL ASSIGNED (ENHANCED FOR MULTI-UNIT)
 RegisterNetEvent('fl_core:callAssigned', function(callData)
     FL.Debug('📞 CALL ASSIGNED EVENT: ' .. callData.id .. ' - New Status: ' .. callData.status)
+    FL.Debug('👥 Assigned Units Count: ' .. #(callData.assigned_units or {}))
+    FL.Debug('🏷️ Unit Details Count: ' .. #(callData.unit_details or {}))
 
     -- Critical: Update local storage IMMEDIATELY
     FL.Client.activeCalls[callData.id] = callData
@@ -232,8 +321,13 @@ RegisterNetEvent('fl_core:callAssigned', function(callData)
         FL.Debug('🗺️ Waypoint set to: ' .. callData.coords.x .. ', ' .. callData.coords.y)
     end
 
-    -- Show notification
-    QBCore.Functions.Notify('You have been assigned to call ' .. callData.id, 'success')
+    -- Enhanced notification with unit count
+    local unitCount = #(callData.unit_details or {})
+    local notificationText = 'You have been assigned to call ' .. callData.id
+    if unitCount > 1 then
+        notificationText = notificationText .. ' (' .. unitCount .. ' units total)'
+    end
+    QBCore.Functions.Notify(notificationText, 'success')
 
     -- FORCE MDT update with detailed logging
     if FL.Client.showingUI then
@@ -268,9 +362,10 @@ RegisterNetEvent('fl_core:callAssigned', function(callData)
     FL.Debug('✅ Call assignment processing completed')
 end)
 
--- CALL STATUS UPDATE (NEW - for real-time sync)
+-- CALL STATUS UPDATE (ENHANCED FOR MULTI-UNIT)
 RegisterNetEvent('fl_core:callStatusUpdate', function(callId, callData)
     FL.Debug('📋 CALL STATUS UPDATE EVENT: ' .. callId .. ' - New Status: ' .. callData.status)
+    FL.Debug('👥 Updated Units Count: ' .. #(callData.assigned_units or {}))
 
     -- Update local storage
     FL.Client.activeCalls[callId] = callData
@@ -295,7 +390,7 @@ RegisterNetEvent('fl_core:callStatusUpdate', function(callId, callData)
     end
 end)
 
--- CALL COMPLETED
+-- CALL COMPLETED (ENHANCED)
 RegisterNetEvent('fl_core:callCompleted', function(callId)
     FL.Debug('✅ CALL COMPLETED EVENT: ' .. callId)
 
@@ -319,17 +414,20 @@ RegisterNetEvent('fl_core:callCompleted', function(callId)
     end
 end)
 
--- ACTIVE CALLS (IMPROVED with validation)
+-- ACTIVE CALLS (ENHANCED FOR MULTI-UNIT)
 RegisterNetEvent('fl_core:activeCalls', function(calls)
     FL.Debug('📋 RECEIVED ACTIVE CALLS FROM SERVER: ' .. FL.Functions.TableSize(calls) .. ' calls')
 
-    -- Validate and store calls
+    -- Validate and store calls with unit details logging
     local validCalls = {}
     for callId, callData in pairs(calls) do
         if callData and callData.id and callData.status then
             validCalls[callId] = callData
+            local unitCount = #(callData.unit_details or {})
             FL.Debug('📞 Valid call: ' ..
-                callId .. ' - Status: ' .. callData.status .. ' - Type: ' .. (callData.type or 'unknown'))
+                callId ..
+                ' - Status: ' ..
+                callData.status .. ' - Type: ' .. (callData.type or 'unknown') .. ' - Units: ' .. unitCount)
         else
             FL.Debug('❌ Invalid call data for: ' .. tostring(callId))
         end
@@ -340,6 +438,13 @@ RegisterNetEvent('fl_core:activeCalls', function(calls)
     -- Update MDT if open with detailed logging
     if FL.Client.showingUI then
         FL.Debug('📱 SENDING VALIDATED CALLS TO UI: ' .. FL.Functions.TableSize(validCalls) .. ' calls')
+
+        -- Send player source to UI for assignment checking (MULTI-UNIT FEATURE)
+        SendNUIMessage({
+            type = 'setPlayerSource',
+            source = FL.Client.playerSource
+        })
+
         SendNUIMessage({
             type = 'updateCalls',
             data = FL.Client.activeCalls
@@ -347,7 +452,8 @@ RegisterNetEvent('fl_core:activeCalls', function(calls)
 
         -- Debug output each call for UI
         for callId, callData in pairs(FL.Client.activeCalls) do
-            FL.Debug('📤 Sending to UI - Call: ' .. callId .. ' Status: ' .. callData.status)
+            local unitCount = #(callData.unit_details or {})
+            FL.Debug('📤 Sending to UI - Call: ' .. callId .. ' Status: ' .. callData.status .. ' Units: ' .. unitCount)
         end
     else
         FL.Debug('📱 MDT not open - calls stored but not sent to UI')
@@ -355,7 +461,7 @@ RegisterNetEvent('fl_core:activeCalls', function(calls)
 end)
 
 -- ====================================================================
--- JOB INTEGRATION (NULL-SAFE FIXED)
+-- JOB INTEGRATION (ENHANCED)
 -- ====================================================================
 
 -- Handle QBCore job updates
@@ -365,6 +471,8 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
     -- Check if it's an emergency service job
     local service = FL.JobMapping[job.name]
     if service then
+        FL.Debug('✅ Emergency service job detected: ' .. service)
+
         -- Update service info
         FL.Client.serviceInfo = {
             service = service,
@@ -374,11 +482,15 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
             qbJob = job.name
         }
 
+        FL.Debug('👤 Updated service info: ' .. json.encode(FL.Client.serviceInfo))
+
         -- Handle uniform and equipment (NULL-SAFE)
         if job.onduty then
+            FL.Debug('👕 Going on duty - applying uniform and equipment')
             ApplyUniform(service)
             GiveServiceEquipment(service)
         else
+            FL.Debug('👔 Going off duty - removing uniform and equipment')
             RemoveUniform()
             if FL.Client.serviceInfo and FL.Client.serviceInfo.service then
                 RemoveServiceEquipment(FL.Client.serviceInfo.service)
@@ -387,11 +499,14 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
 
         -- Update active calls
         if job.onduty then
+            FL.Debug('📞 Requesting active calls from server')
             TriggerServerEvent('fl_core:getActiveCalls')
         else
+            FL.Debug('📞 Clearing active calls (off duty)')
             FL.Client.activeCalls = {}
         end
     else
+        FL.Debug('❌ Not an emergency service job: ' .. job.name)
         -- Not an emergency service job
         FL.Client.serviceInfo = nil
         FL.Client.activeCalls = {}
@@ -400,23 +515,29 @@ end)
 
 -- Handle duty status updates
 RegisterNetEvent('QBCore:Client:SetDuty', function(duty)
+    FL.Debug('🔄 Duty status update: ' .. tostring(duty))
+
     if FL.Client.serviceInfo then
         FL.Client.serviceInfo.isOnDuty = duty
 
         if duty then
+            FL.Debug('✅ Starting duty procedures')
             ApplyUniform(FL.Client.serviceInfo.service)
             GiveServiceEquipment(FL.Client.serviceInfo.service)
             TriggerServerEvent('fl_core:getActiveCalls')
         else
+            FL.Debug('❌ Ending duty procedures')
             RemoveUniform()
             RemoveServiceEquipment(FL.Client.serviceInfo.service)
             FL.Client.activeCalls = {}
         end
+    else
+        FL.Debug('⚠️ No service info during duty toggle')
     end
 end)
 
 -- ====================================================================
--- MARKER SYSTEM (VOLLSTÄNDIGER DEBUG-MODUS)
+-- MARKER SYSTEM (DEINE VOLLSTÄNDIGE DEBUG VERSION)
 -- ====================================================================
 
 -- Main loop for marker detection and drawing (KOMPLETT NEUE DEBUG VERSION)
@@ -436,7 +557,7 @@ function MainLoop()
                 -- Step 2: Get player coordinates
                 local playerCoords = GetEntityCoords(FL.Client.playerPed)
                 FL.Debug('🏃 Player coords: ' ..
-                string.format("%.2f, %.2f, %.2f", playerCoords.x, playerCoords.y, playerCoords.z))
+                    string.format("%.2f, %.2f, %.2f", playerCoords.x, playerCoords.y, playerCoords.z))
 
                 -- NOTFALL-TEST: Zeichne immer einen orangenen Marker über dem Spieler
                 FL.Debug('🧪 Drawing test marker above player...')
@@ -446,7 +567,7 @@ function MainLoop()
                 -- Step 3: Check if player has service
                 if FL.Client.serviceInfo then
                     FL.Debug('👤 Service: ' ..
-                    FL.Client.serviceInfo.service .. ', OnDuty: ' .. tostring(FL.Client.serviceInfo.isOnDuty))
+                        FL.Client.serviceInfo.service .. ', OnDuty: ' .. tostring(FL.Client.serviceInfo.isOnDuty))
 
                     -- Step 4: Loop through stations
                     for stationId, stationData in pairs(Config.Stations) do
@@ -522,7 +643,7 @@ function MainLoop()
                             end
                         else
                             FL.Debug('❌ Service mismatch: ' ..
-                            stationData.service .. ' != ' .. FL.Client.serviceInfo.service)
+                                stationData.service .. ' != ' .. FL.Client.serviceInfo.service)
                         end
                     end
                 else
@@ -792,10 +913,10 @@ function ShowHelpText(text)
 end
 
 -- ====================================================================
--- MDT SYSTEM (NULL-SAFE IMPROVED)
+-- MDT SYSTEM (ENHANCED FOR MULTI-UNIT)
 -- ====================================================================
 
--- Show MDT/Tablet (NULL-SAFE IMPROVED)
+-- Show MDT/Tablet (ENHANCED with player source)
 function ShowMDT()
     if not FL.Client.serviceInfo or not FL.Client.serviceInfo.isOnDuty then
         QBCore.Functions.Notify('You must be on duty to use the MDT', 'error')
@@ -811,15 +932,17 @@ function ShowMDT()
     CreateThread(function()
         Wait(200) -- Give server time to respond
 
-        -- Prepare MDT data
+        -- Prepare MDT data with Multi-Unit support
         local mdtData = {
             service = FL.Client.serviceInfo.service,
             rank = FL.Client.serviceInfo.rank,
             rankName = FL.Client.serviceInfo.rankName,
-            activeCalls = FL.Client.activeCalls
+            activeCalls = FL.Client.activeCalls,
+            playerSource = FL.Client.playerSource -- Include player source
         }
 
         FL.Debug('📱 Opening MDT with data - Calls: ' .. FL.Functions.TableSize(mdtData.activeCalls))
+        FL.Debug('👤 Player Source for UI: ' .. mdtData.playerSource)
 
         -- Play tablet animation (NULL-SAFE)
         local playerPed = FL.Client.playerPed
@@ -836,12 +959,20 @@ function ShowMDT()
         -- Open MDT UI with proper focus
         FL.Client.showingUI = true
         SetNuiFocus(true, true)
+
+        -- Send player source first (MULTI-UNIT FEATURE)
+        SendNUIMessage({
+            type = 'setPlayerSource',
+            source = FL.Client.playerSource
+        })
+
+        -- Then send MDT data
         SendNUIMessage({
             type = 'showMDT',
             data = mdtData
         })
 
-        FL.Debug('📱 MDT UI opened and data sent')
+        FL.Debug('📱 MDT UI opened and data sent with player source')
     end)
 end
 
@@ -875,7 +1006,7 @@ function CloseMDT()
 end
 
 -- ====================================================================
--- COMMANDS (NULL-SAFE FIXED)
+-- COMMANDS (ENHANCED)
 -- ====================================================================
 
 -- Open MDT command
@@ -924,7 +1055,7 @@ RegisterCommand('fixchat', function(source, args, rawCommand)
     QBCore.Functions.Notify('Chat should be fixed now - try T or Y', 'success')
 end, false)
 
--- Debug command for checking calls
+-- Enhanced debug command for checking calls with Multi-Unit info
 RegisterCommand('debugcalls', function(source, args, rawCommand)
     if FL.Client.serviceInfo and FL.Client.serviceInfo.isOnDuty then
         local count = FL.Functions.TableSize(FL.Client.activeCalls)
@@ -932,16 +1063,24 @@ RegisterCommand('debugcalls', function(source, args, rawCommand)
 
         -- Print detailed call information to console
         print('^3[FL CLIENT DEBUG]^7 ======================')
+        print('^3[FL CLIENT DEBUG]^7 Player Source: ' .. FL.Client.playerSource)
         print('^3[FL CLIENT DEBUG]^7 Service: ' .. FL.Client.serviceInfo.service)
         print('^3[FL CLIENT DEBUG]^7 On Duty: ' .. tostring(FL.Client.serviceInfo.isOnDuty))
         print('^3[FL CLIENT DEBUG]^7 Active Calls: ' .. count)
         for callId, callData in pairs(FL.Client.activeCalls) do
+            local unitCount = #(callData.unit_details or {})
             print('^3[FL CLIENT CALL]^7 ID: ' .. callId)
             print('^3[FL CLIENT CALL]^7 Status: ' .. callData.status)
             print('^3[FL CLIENT CALL]^7 Type: ' .. callData.type)
             print('^3[FL CLIENT CALL]^7 Priority: ' .. callData.priority)
             print('^3[FL CLIENT CALL]^7 Service: ' .. callData.service)
             print('^3[FL CLIENT CALL]^7 Assigned Units: ' .. json.encode(callData.assigned_units or {}))
+            print('^3[FL CLIENT CALL]^7 Unit Details Count: ' .. unitCount)
+            if unitCount > 0 then
+                for i, unit in pairs(callData.unit_details) do
+                    print('^3[FL CLIENT UNIT]^7   Unit ' .. i .. ': ' .. unit.callsign .. ' (' .. unit.name .. ')')
+                end
+            end
             print('^3[FL CLIENT CALL]^7 ---')
         end
         print('^3[FL CLIENT DEBUG]^7 ======================')
@@ -975,4 +1114,4 @@ CreateThread(function()
     end
 end)
 
-FL.Debug('✅ FL Core client loaded with FIXED NUI Callbacks and Server Event communication')
+FL.Debug('🎉 FL Core client loaded with Multi-Unit Assignment Support + VOLLSTÄNDIGE DEBUG VERSION')

@@ -1,17 +1,19 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (NUI CALLBACKS FIXED)
--- Hauptprobleme behoben:
--- 1. RegisterNUICallback aus Server-Code entfernt (funktioniert nur client-side)
--- 2. Durch Server Events ersetzt
--- 3. Client sendet jetzt Server Events statt NUI Callbacks
+-- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (MULTI-UNIT ASSIGNMENT)
+-- NEUE FEATURES:
+-- 1. Mehrere Units können sich zu einem Call zuweisen
+-- 2. Assigned Units werden mit Namen/Callsigns angezeigt
+-- 3. Verbessertes Status-System (pending -> assigned -> in_progress -> completed)
+-- 4. Unit-Details werden an alle Clients gesendet
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
 
--- Global state variables (simplified)
+-- Global state variables (enhanced)
 FL.Server = {
     EmergencyCalls = {}, -- Active emergency calls [callId] = callData
-    ActiveStations = {}  -- Track which stations players are using
+    ActiveStations = {}, -- Track which stations players are using
+    UnitCallsigns = {}   -- Store unit callsigns [source] = callsign
 }
 
 -- Mapping between QBCore jobs and FL services
@@ -29,10 +31,64 @@ FL.ServiceMapping = {
 }
 
 -- ====================================================================
--- EMERGENCY CALLS SYSTEM (FIXED)
+-- ENHANCED UNIT MANAGEMENT
 -- ====================================================================
 
--- Create new emergency call (improved logging)
+-- Generate callsign for player
+local function GenerateCallsign(service, source)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return 'UNKNOWN' end
+
+    local serviceMap = {
+        ['fire'] = 'E',   -- Engine
+        ['police'] = 'A', -- Adam (Police)
+        ['ems'] = 'M'     -- Medic
+    }
+
+    local prefix = serviceMap[service] or 'U'
+    local unitNumber = math.random(100, 999)
+
+    return prefix .. unitNumber
+end
+
+-- Get player name for display
+local function GetPlayerDisplayName(source)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return 'Unknown Player' end
+
+    return Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+end
+
+-- Get unit info for display
+local function GetUnitInfo(source)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return nil end
+
+    local callsign = FL.Server.UnitCallsigns[source]
+    if not callsign then
+        local service = FL.JobMapping[Player.PlayerData.job.name]
+        if service then
+            callsign = GenerateCallsign(service, source)
+            FL.Server.UnitCallsigns[source] = callsign
+        else
+            callsign = 'UNKNOWN'
+        end
+    end
+
+    return {
+        source = source,
+        callsign = callsign,
+        name = GetPlayerDisplayName(source),
+        rank = Player.PlayerData.job.grade.name,
+        isOnline = true
+    }
+end
+
+-- ====================================================================
+-- EMERGENCY CALLS SYSTEM (ENHANCED FOR MULTI-UNIT)
+-- ====================================================================
+
+-- Create new emergency call (enhanced with unit tracking)
 function CreateEmergencyCall(callData)
     if not callData or not callData.service or not callData.coords then
         FL.Debug('❌ CreateEmergencyCall: Invalid callData provided')
@@ -41,7 +97,7 @@ function CreateEmergencyCall(callData)
 
     local callId = 'FL' .. string.upper(callData.service) .. os.time() .. math.random(100, 999)
 
-    -- Prepare call data
+    -- Prepare call data with enhanced unit tracking
     local emergencyCall = {
         id = callId,
         service = callData.service,
@@ -50,8 +106,10 @@ function CreateEmergencyCall(callData)
         priority = callData.priority or 2,
         description = callData.description or 'Emergency assistance required',
         status = 'pending',
-        assigned_units = {},
-        created_at = os.time()
+        assigned_units = {},                -- Array of source IDs
+        unit_details = {},                  -- Array of unit info objects
+        created_at = os.time(),
+        max_units = callData.max_units or 4 -- Maximum units that can respond
     }
 
     -- Store in memory FIRST
@@ -95,7 +153,7 @@ function CreateEmergencyCall(callData)
     return callId
 end
 
--- Assign unit to emergency call (COMPLETELY FIXED)
+-- Assign unit to emergency call (COMPLETELY REWRITTEN FOR MULTI-UNIT)
 function AssignUnitToCall(callId, source)
     FL.Debug('🎯 AssignUnitToCall called - CallID: ' .. tostring(callId) .. ', Source: ' .. tostring(source))
 
@@ -139,24 +197,51 @@ function AssignUnitToCall(callId, source)
         end
     end
 
+    -- Check if maximum units reached
+    if #call.assigned_units >= call.max_units then
+        FL.Debug('❌ Maximum units reached for call')
+        TriggerClientEvent('QBCore:Notify', source, 'Maximum units already assigned to this call', 'error')
+        return false, 'Maximum units reached'
+    end
+
     -- Add unit to assigned units
     table.insert(call.assigned_units, source)
-    call.status = 'assigned'
 
-    FL.Debug('🔄 Updated call status to: ' .. call.status .. ' - Assigned units: ' .. json.encode(call.assigned_units))
+    -- Get unit info and add to details
+    local unitInfo = GetUnitInfo(source)
+    if unitInfo then
+        table.insert(call.unit_details, unitInfo)
+    end
+
+    -- Update call status based on assignment count
+    if #call.assigned_units == 1 then
+        call.status = 'assigned'
+    elseif #call.assigned_units > 1 then
+        call.status = 'multi_assigned'
+    end
+
+    FL.Debug('🔄 Updated call status to: ' .. call.status .. ' - Assigned units: ' .. #call.assigned_units)
+    FL.Debug('👥 Unit details: ' .. json.encode(call.unit_details))
 
     -- Update database
     MySQL.update('UPDATE fl_emergency_calls SET status = ?, assigned_units = ? WHERE call_id = ?', {
-        'assigned',
+        call.status,
         json.encode(call.assigned_units),
         callId
     }, function(affectedRows)
         FL.Debug('💾 Database updated - Affected rows: ' .. tostring(affectedRows))
     end)
 
+    -- Generate assignment message
+    local unitCallsign = unitInfo and unitInfo.callsign or 'Unknown Unit'
+    local assignmentMsg = 'Unit ' .. unitCallsign .. ' assigned to call ' .. callId
+    if #call.assigned_units > 1 then
+        assignmentMsg = assignmentMsg .. ' (' .. #call.assigned_units .. ' units total)'
+    end
+
     -- Notify the assigned unit FIRST
     TriggerClientEvent('fl_core:callAssigned', source, call)
-    TriggerClientEvent('QBCore:Notify', source, 'Call ' .. callId .. ' assigned to you', 'success')
+    TriggerClientEvent('QBCore:Notify', source, assignmentMsg, 'success')
 
     FL.Debug('📞 Sent callAssigned event to source: ' .. source)
 
@@ -181,7 +266,57 @@ function AssignUnitToCall(callId, source)
     return true, 'Assignment successful'
 end
 
--- Complete emergency call (also improved)
+-- Start working on call (NEW FUNCTION)
+function StartWorkingOnCall(callId, source)
+    FL.Debug('🚀 StartWorkingOnCall called - CallID: ' .. tostring(callId) .. ', Source: ' .. tostring(source))
+
+    local call = FL.Server.EmergencyCalls[callId]
+
+    if not call then
+        FL.Debug('❌ Call not found for start work: ' .. tostring(callId))
+        return false, 'Call not found'
+    end
+
+    -- Check if unit is assigned to this call
+    local isAssigned = false
+    for _, assignedSource in pairs(call.assigned_units) do
+        if assignedSource == source then
+            isAssigned = true
+            break
+        end
+    end
+
+    if not isAssigned then
+        FL.Debug('❌ Unit not assigned to call for start work')
+        TriggerClientEvent('QBCore:Notify', source, 'You are not assigned to this call', 'error')
+        return false, 'Not assigned'
+    end
+
+    -- Update call status to in progress
+    call.status = 'in_progress'
+    call.started_at = os.time()
+
+    FL.Debug('🔄 Updated call status to: ' .. call.status)
+
+    -- Update database
+    MySQL.update('UPDATE fl_emergency_calls SET status = ? WHERE call_id = ?', {
+        'in_progress',
+        callId
+    }, function(affectedRows)
+        FL.Debug('💾 Database updated for start work - Affected rows: ' .. tostring(affectedRows))
+    end)
+
+    -- Notify all assigned units
+    for _, assignedSource in pairs(call.assigned_units) do
+        TriggerClientEvent('fl_core:callStatusUpdate', assignedSource, callId, call)
+        TriggerClientEvent('QBCore:Notify', assignedSource, 'Call ' .. callId .. ' is now in progress', 'info')
+    end
+
+    FL.Debug('✅ Call ' .. callId .. ' started successfully')
+    return true, 'Call started successfully'
+end
+
+-- Complete emergency call (enhanced for multi-unit)
 function CompleteEmergencyCall(callId, source)
     FL.Debug('✅ CompleteEmergencyCall called - CallID: ' .. tostring(callId) .. ', Source: ' .. tostring(source))
 
@@ -210,21 +345,34 @@ function CompleteEmergencyCall(callId, source)
     -- Mark call as completed
     call.status = 'completed'
     call.completed_at = os.time()
+    call.completed_by = source
 
     FL.Debug('🔄 Updated call status to: ' .. call.status)
 
+    -- Calculate response time
+    if call.started_at then
+        call.response_time = call.completed_at - call.started_at
+    end
+
     -- Update database
-    MySQL.update('UPDATE fl_emergency_calls SET status = ?, completed_at = NOW() WHERE call_id = ?', {
+    MySQL.update('UPDATE fl_emergency_calls SET status = ?, completed_at = NOW(), response_time = ? WHERE call_id = ?', {
         'completed',
+        call.response_time or 0,
         callId
     }, function(affectedRows)
         FL.Debug('💾 Database updated for completion - Affected rows: ' .. tostring(affectedRows))
     end)
 
     -- Notify all assigned units
+    local completedByUnit = GetUnitInfo(source)
+    local completionMsg = 'Call ' .. callId .. ' completed'
+    if completedByUnit then
+        completionMsg = completionMsg .. ' by Unit ' .. completedByUnit.callsign
+    end
+
     for _, assignedSource in pairs(call.assigned_units) do
         TriggerClientEvent('fl_core:callCompleted', assignedSource, callId)
-        TriggerClientEvent('QBCore:Notify', assignedSource, 'Call ' .. callId .. ' completed', 'success')
+        TriggerClientEvent('QBCore:Notify', assignedSource, completionMsg, 'success')
     end
 
     -- Remove from active calls
@@ -235,7 +383,7 @@ function CompleteEmergencyCall(callId, source)
 end
 
 -- ====================================================================
--- JOB-BASED FUNCTIONS (unchanged but with better logging)
+-- JOB-BASED FUNCTIONS (enhanced with unit tracking)
 -- ====================================================================
 
 -- Check if player has emergency service job
@@ -282,10 +430,10 @@ function GetPlayerServiceInfo(source)
 end
 
 -- ====================================================================
--- SERVER EVENTS (ERSETZT NUI CALLBACKS)
+-- SERVER EVENTS (ENHANCED FOR MULTI-UNIT)
 -- ====================================================================
 
--- FIXED: Server Event statt NUI Callback für Assignment
+-- ENHANCED: Server Event for Assignment
 RegisterServerEvent('fl_core:assignToCallFromUI', function(callId)
     FL.Debug('📱 Server Event: assignToCallFromUI - CallID: ' .. tostring(callId))
 
@@ -306,7 +454,28 @@ RegisterServerEvent('fl_core:assignToCallFromUI', function(callId)
     })
 end)
 
--- FIXED: Server Event statt NUI Callback für Completion
+-- NEW: Server Event for starting work on call
+RegisterServerEvent('fl_core:startWorkOnCallFromUI', function(callId)
+    FL.Debug('📱 Server Event: startWorkOnCallFromUI - CallID: ' .. tostring(callId))
+
+    if not callId then
+        FL.Debug('❌ No callId provided in server event')
+        return
+    end
+
+    local success, message = StartWorkingOnCall(callId, source)
+
+    FL.Debug('📱 Start work result - Success: ' .. tostring(success) .. ', Message: ' .. tostring(message))
+
+    -- Send result back to client
+    TriggerClientEvent('fl_core:startWorkResult', source, {
+        success = success,
+        message = message,
+        callId = callId
+    })
+end)
+
+-- ENHANCED: Server Event for Completion
 RegisterServerEvent('fl_core:completeCallFromUI', function(callId)
     FL.Debug('📱 Server Event: completeCallFromUI - CallID: ' .. tostring(callId))
 
@@ -342,7 +511,7 @@ RegisterServerEvent('fl_core:getServiceInfo', function()
     TriggerClientEvent('fl_core:serviceInfo', source, serviceInfo)
 end)
 
--- Get all active calls for player's service (IMPROVED)
+-- Get all active calls for player's service (ENHANCED with unit details)
 RegisterServerEvent('fl_core:getActiveCalls', function()
     FL.Debug('📞 getActiveCalls requested by source: ' .. tostring(source))
 
@@ -356,9 +525,20 @@ RegisterServerEvent('fl_core:getActiveCalls', function()
     local callCount = 0
     for callId, callData in pairs(FL.Server.EmergencyCalls) do
         if callData.service == serviceInfo.service then
+            -- Clean up unit details (remove offline players)
+            local activeUnitDetails = {}
+            for _, unitDetail in pairs(callData.unit_details) do
+                local Player = QBCore.Functions.GetPlayer(unitDetail.source)
+                if Player then
+                    activeUnitDetails[#activeUnitDetails + 1] = unitDetail
+                end
+            end
+            callData.unit_details = activeUnitDetails
+
             calls[callId] = callData
             callCount = callCount + 1
-            FL.Debug('📋 Including call: ' .. callId .. ' - Status: ' .. callData.status)
+            FL.Debug('📋 Including call: ' ..
+            callId .. ' - Status: ' .. callData.status .. ' - Units: ' .. #callData.unit_details)
         end
     end
 
@@ -366,20 +546,8 @@ RegisterServerEvent('fl_core:getActiveCalls', function()
     TriggerClientEvent('fl_core:activeCalls', source, calls)
 end)
 
--- Assign to emergency call (SERVER EVENT - for backwards compatibility)
-RegisterServerEvent('fl_core:assignToCall', function(callId)
-    FL.Debug('📞 Server Event: assignToCall - CallID: ' .. tostring(callId))
-    AssignUnitToCall(callId, source)
-end)
-
--- Complete emergency call (SERVER EVENT - for backwards compatibility)
-RegisterServerEvent('fl_core:completeCall', function(callId)
-    FL.Debug('📞 Server Event: completeCall - CallID: ' .. tostring(callId))
-    CompleteEmergencyCall(callId, source)
-end)
-
 -- ====================================================================
--- DUTY MANAGEMENT (unchanged)
+-- DUTY MANAGEMENT (unchanged but enhanced with callsign generation)
 -- ====================================================================
 
 -- Handle duty toggle (integrates with QBCore duty system)
@@ -399,6 +567,7 @@ function HandleDutyToggle(source, stationId)
         -- End duty
         Player.Functions.SetJobDuty(false)
         FL.Server.ActiveStations[source] = nil
+        FL.Server.UnitCallsigns[source] = nil -- Clear callsign
 
         TriggerClientEvent('QBCore:Notify', source, 'You are now off duty', 'success')
         TriggerClientEvent('fl_core:dutyChanged', source, false, service, 0)
@@ -409,80 +578,72 @@ function HandleDutyToggle(source, stationId)
         Player.Functions.SetJobDuty(true)
         FL.Server.ActiveStations[source] = stationId
 
-        TriggerClientEvent('QBCore:Notify', source, 'You are now on duty', 'success')
+        -- Generate callsign
+        local callsign = GenerateCallsign(service, source)
+        FL.Server.UnitCallsigns[source] = callsign
+
+        TriggerClientEvent('QBCore:Notify', source, 'You are now on duty as Unit ' .. callsign, 'success')
         TriggerClientEvent('fl_core:dutyChanged', source, true, service, Player.PlayerData.job.grade.level)
 
-        FL.Debug(Player.PlayerData.citizenid .. ' started duty for ' .. service .. ' at ' .. stationId)
+        FL.Debug(Player.PlayerData.citizenid ..
+        ' started duty for ' .. service .. ' as Unit ' .. callsign .. ' at ' .. stationId)
     end
 
     return true
 end
 
 -- ====================================================================
--- EQUIPMENT MANAGEMENT (unchanged)
+-- CLEANUP ON PLAYER DISCONNECT (enhanced)
 -- ====================================================================
 
--- Give equipment to player (server-side)
-RegisterServerEvent('fl_core:giveEquipment', function(serviceName)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
+AddEventHandler('playerDropped', function(reason)
+    local source = source
 
-    local equipment = FL.Functions.GetServiceEquipment(serviceName)
-    if not equipment or #equipment == 0 then
-        FL.Debug('No equipment found for ' .. serviceName)
-        return
+    -- Clean up station tracking
+    if FL.Server.ActiveStations[source] then
+        FL.Server.ActiveStations[source] = nil
     end
 
-    -- Give radio first
-    Player.Functions.AddItem('radio', 1)
-    TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items['radio'], 'add')
+    -- Clean up callsign
+    if FL.Server.UnitCallsigns[source] then
+        FL.Server.UnitCallsigns[source] = nil
+    end
 
-    -- Give service-specific equipment
-    for _, item in pairs(equipment) do
-        if QBCore.Shared.Items[item] then
-            Player.Functions.AddItem(item, 1)
-            TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items[item], 'add')
+    -- Remove from any assigned calls and update unit details
+    for callId, callData in pairs(FL.Server.EmergencyCalls) do
+        -- Remove from assigned units
+        for i, assignedSource in pairs(callData.assigned_units) do
+            if assignedSource == source then
+                table.remove(callData.assigned_units, i)
+                FL.Debug('🚪 Removed disconnected player ' .. source .. ' from call ' .. callId)
+                break
+            end
+        end
+
+        -- Remove from unit details
+        for i, unitDetail in pairs(callData.unit_details) do
+            if unitDetail.source == source then
+                table.remove(callData.unit_details, i)
+                FL.Debug('🚪 Removed unit detail for player ' .. source .. ' from call ' .. callId)
+                break
+            end
+        end
+
+        -- Update call status if no units left assigned
+        if #callData.assigned_units == 0 then
+            callData.status = 'pending'
+            FL.Debug('🔄 Call ' .. callId .. ' reset to pending - no units assigned')
+        elseif #callData.assigned_units == 1 then
+            callData.status = 'assigned'
         end
     end
-
-    FL.Debug('Given ' .. serviceName .. ' equipment to ' .. Player.PlayerData.citizenid)
-end)
-
--- Remove equipment from player (server-side)
-RegisterServerEvent('fl_core:removeEquipment', function(serviceName)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local equipment = FL.Functions.GetServiceEquipment(serviceName)
-    if not equipment or #equipment == 0 then
-        FL.Debug('No equipment found for ' .. serviceName)
-        return
-    end
-
-    -- Remove radio
-    local radioItem = Player.Functions.GetItemByName('radio')
-    if radioItem then
-        Player.Functions.RemoveItem('radio', radioItem.amount or 1)
-        TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items['radio'], 'remove')
-    end
-
-    -- Remove service-specific equipment
-    for _, item in pairs(equipment) do
-        local playerItem = Player.Functions.GetItemByName(item)
-        if playerItem then
-            Player.Functions.RemoveItem(item, playerItem.amount)
-            TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items[item], 'remove')
-        end
-    end
-
-    FL.Debug('Removed ' .. serviceName .. ' equipment from ' .. Player.PlayerData.citizenid)
 end)
 
 -- ====================================================================
--- SIMPLIFIED ADMIN COMMANDS (unchanged but with better logging)
+-- ENHANCED ADMIN COMMANDS
 -- ====================================================================
 
--- Create test emergency call
+-- Create test emergency call with custom max units
 RegisterCommand('testcall', function(source, args, rawCommand)
     FL.Debug('🧪 testcall command executed by source: ' .. tostring(source))
 
@@ -500,11 +661,13 @@ RegisterCommand('testcall', function(source, args, rawCommand)
     end
 
     if #args < 1 then
-        TriggerClientEvent('QBCore:Notify', source, 'Usage: /testcall [fire/police/ems]', 'error')
+        TriggerClientEvent('QBCore:Notify', source, 'Usage: /testcall [fire/police/ems] [max_units]', 'error')
         return
     end
 
     local service = args[1]
+    local maxUnits = tonumber(args[2]) or 4
+
     if not FL.Functions.ValidateService(service) then
         TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
         return
@@ -517,46 +680,19 @@ RegisterCommand('testcall', function(source, args, rawCommand)
     local callData = FL.Functions.GenerateEmergencyCall(service)
     if callData then
         callData.coords = vector3(playerCoords.x, playerCoords.y, playerCoords.z)
+        callData.max_units = maxUnits
 
         local callId = CreateEmergencyCall(callData)
         if callId then
-            TriggerClientEvent('QBCore:Notify', source, 'Created emergency call: ' .. callId, 'success')
-            FL.Debug('🚨 Test call created: ' .. callId .. ' for ' .. service .. ' by ' .. Player.PlayerData.citizenid)
+            TriggerClientEvent('QBCore:Notify', source,
+                'Created emergency call: ' .. callId .. ' (Max Units: ' .. maxUnits .. ')', 'success')
+            FL.Debug('🚨 Test call created: ' ..
+            callId .. ' for ' .. service .. ' with max units: ' .. maxUnits .. ' by ' .. Player.PlayerData.citizenid)
         else
             TriggerClientEvent('QBCore:Notify', source, 'Failed to create emergency call', 'error')
         end
     end
 end, false)
-
--- ====================================================================
--- CLEANUP ON PLAYER DISCONNECT
--- ====================================================================
-
-AddEventHandler('playerDropped', function(reason)
-    local source = source
-
-    -- Clean up station tracking
-    if FL.Server.ActiveStations[source] then
-        FL.Server.ActiveStations[source] = nil
-    end
-
-    -- Remove from any assigned calls
-    for callId, callData in pairs(FL.Server.EmergencyCalls) do
-        for i, assignedSource in pairs(callData.assigned_units) do
-            if assignedSource == source then
-                table.remove(callData.assigned_units, i)
-                FL.Debug('🚪 Removed disconnected player ' .. source .. ' from call ' .. callId)
-
-                -- If no units left assigned, reset to pending
-                if #callData.assigned_units == 0 then
-                    callData.status = 'pending'
-                    FL.Debug('🔄 Call ' .. callId .. ' reset to pending - no units assigned')
-                end
-                break
-            end
-        end
-    end
-end)
 
 -- ====================================================================
 -- DATABASE INITIALIZATION (minimal version)
@@ -573,7 +709,7 @@ CreateThread(function()
 
     Wait(2000)
 
-    -- Create basic tables if they don't exist
+    -- Create enhanced tables for multi-unit support
     MySQL.query([[
         CREATE TABLE IF NOT EXISTS `fl_emergency_calls` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -587,14 +723,18 @@ CreateThread(function()
             `description` text,
             `status` varchar(20) DEFAULT 'pending',
             `assigned_units` text,
+            `max_units` int(2) DEFAULT 4,
+            `response_time` int(11) DEFAULT NULL,
             `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `started_at` timestamp NULL,
             `completed_at` timestamp NULL,
+            `completed_by` int(11) DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `call_id` (`call_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]], {}, function()
-        FL.Debug('✅ Emergency calls table ready')
+        FL.Debug('✅ Enhanced emergency calls table ready')
     end)
 end)
 
-FL.Debug('🎉 FL Core server loaded with FIXED NUI Callbacks replaced by Server Events')
+FL.Debug('🎉 FL Core server loaded with MULTI-UNIT Assignment Support')

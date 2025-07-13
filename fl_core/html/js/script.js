@@ -1,15 +1,17 @@
 // ====================================================================
-// FLASHING LIGHTS EMERGENCY SERVICES - FIXED UI JAVASCRIPT
-// Hauptprobleme behoben:
-// 1. NUI Callbacks verwenden jetzt korrekte Resource-Referenz
-// 2. Fetch-URLs verwenden GetParentResourceName() korrekt
-// 3. Bessere Error-Handling für Network-Requests
+// FLASHING LIGHTS EMERGENCY SERVICES - MULTI-UNIT UI JAVASCRIPT
+// NEUE FEATURES:
+// 1. Zeigt assigned units bei jedem Call an
+// 2. Ermöglicht mehrere Assignments pro Call
+// 3. Verschiedene Button-States basierend auf Assignment-Status
+// 4. Erweiterte Call-Status (pending/assigned/multi_assigned/in_progress/completed)
 // ====================================================================
 
 // Global state
 let currentData = {};
 let currentService = "";
 let updateInterval = null;
+let currentPlayerSource = null; // Track current player
 
 // Service configurations
 const serviceConfig = {
@@ -35,7 +37,7 @@ const serviceConfig = {
 // ====================================================================
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("🚀 FL Emergency Services UI loaded");
+  console.log("🚀 FL Emergency Services Multi-Unit UI loaded");
 
   // Initialize UI components
   initializeNavigation();
@@ -46,7 +48,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // ====================================================================
-// MESSAGE HANDLING (IMPROVED)
+// MESSAGE HANDLING (ENHANCED FOR MULTI-UNIT)
 // ====================================================================
 
 // Listen for messages from client
@@ -96,11 +98,16 @@ window.addEventListener("message", function (event) {
     case "showNotification":
       showNotification(data.data);
       break;
+
+    case "setPlayerSource":
+      currentPlayerSource = data.source;
+      console.log("👤 Player source set to:", currentPlayerSource);
+      break;
   }
 });
 
 // ====================================================================
-// CALL MANAGEMENT (COMPLETELY REWRITTEN)
+// CALL MANAGEMENT (ENHANCED FOR MULTI-UNIT)
 // ====================================================================
 
 function updateActiveCalls(calls) {
@@ -176,14 +183,22 @@ function createCallElement(call) {
 
   const callDiv = document.createElement("div");
   callDiv.className = `call-item priority-${call.priority}`;
-  callDiv.setAttribute("data-call-id", call.id); // Add data attribute for easy finding
+  callDiv.setAttribute("data-call-id", call.id);
 
   const priorityText = getPriorityText(call.priority);
   const priorityClass = getPriorityClass(call.priority);
   const timeAgo = getTimeAgo(call.created_at);
 
-  // FIXED: Determine which buttons to show based on call status
-  let actionButtons = getActionButtonsForStatus(call.status, call.id);
+  // ENHANCED: Create assigned units display
+  const assignedUnitsHtml = createAssignedUnitsDisplay(call.unit_details || []);
+
+  // ENHANCED: Determine which buttons to show based on call status and assignment
+  let actionButtons = getActionButtonsForStatus(
+    call.status,
+    call.id,
+    call.unit_details || [],
+    call.max_units || 4
+  );
 
   callDiv.innerHTML = `
         <div class="call-header">
@@ -195,8 +210,11 @@ function createCallElement(call) {
         <div class="call-meta">
             <span><i class="fas fa-clock"></i> ${timeAgo}</span>
             <span><i class="fas fa-map-marker-alt"></i> Emergency Location</span>
-            <span><i class="fas fa-info-circle"></i> Status: <strong>${call.status.toUpperCase()}</strong></span>
+            <span><i class="fas fa-info-circle"></i> Status: <strong>${getStatusDisplayText(
+              call.status
+            )}</strong></span>
         </div>
+        ${assignedUnitsHtml}
         <div class="call-actions">
             ${actionButtons}
         </div>
@@ -206,19 +224,70 @@ function createCallElement(call) {
     "✅ Created call element for:",
     call.id,
     "with status:",
-    call.status
+    call.status,
+    "units:",
+    call.unit_details ? call.unit_details.length : 0
   );
   return callDiv;
 }
 
-// NEW: Get action buttons based on call status
-function getActionButtonsForStatus(status, callId) {
+// NEW: Create assigned units display
+function createAssignedUnitsDisplay(unitDetails) {
+  if (!unitDetails || unitDetails.length === 0) {
+    return `
+            <div class="assigned-units">
+                <div class="units-header">
+                    <i class="fas fa-users"></i>
+                    <span>No Units Assigned</span>
+                </div>
+            </div>
+        `;
+  }
+
+  let unitsHtml = `
+        <div class="assigned-units">
+            <div class="units-header">
+                <i class="fas fa-users"></i>
+                <span>Assigned Units (${unitDetails.length})</span>
+            </div>
+            <div class="units-list">
+    `;
+
+  unitDetails.forEach((unit) => {
+    unitsHtml += `
+            <div class="unit-item">
+                <div class="unit-callsign">${unit.callsign}</div>
+                <div class="unit-name">${unit.name}</div>
+                <div class="unit-rank">${unit.rank}</div>
+            </div>
+        `;
+  });
+
+  unitsHtml += `
+            </div>
+        </div>
+    `;
+
+  return unitsHtml;
+}
+
+// ENHANCED: Get action buttons based on call status and assignment
+function getActionButtonsForStatus(status, callId, unitDetails, maxUnits) {
   console.log(
     "🔘 Getting action buttons for status:",
     status,
     "callId:",
-    callId
+    callId,
+    "units:",
+    unitDetails.length,
+    "max:",
+    maxUnits
   );
+
+  const isPlayerAssigned =
+    currentPlayerSource &&
+    unitDetails.some((unit) => unit.source === currentPlayerSource);
+  const canAssignMore = unitDetails.length < maxUnits;
 
   switch (status) {
     case "pending":
@@ -229,11 +298,65 @@ function getActionButtonsForStatus(status, callId) {
             `;
 
     case "assigned":
-      return `
-                <button class="call-btn complete" onclick="completeCall('${callId}')">
-                    <i class="fas fa-check"></i> Complete Call
-                </button>
-            `;
+    case "multi_assigned":
+      let buttons = "";
+
+      if (!isPlayerAssigned && canAssignMore) {
+        // Player can still assign themselves
+        buttons += `
+                    <button class="call-btn assign secondary" onclick="assignToCall('${callId}')">
+                        <i class="fas fa-user-plus"></i> Join Response
+                    </button>
+                `;
+      }
+
+      if (isPlayerAssigned) {
+        // Player is assigned - show progress/complete buttons
+        if (status !== "in_progress") {
+          buttons += `
+                        <button class="call-btn start-work" onclick="startWorkOnCall('${callId}')">
+                            <i class="fas fa-play"></i> Start Work
+                        </button>
+                    `;
+        }
+        buttons += `
+                    <button class="call-btn complete" onclick="completeCall('${callId}')">
+                        <i class="fas fa-check"></i> Complete Call
+                    </button>
+                `;
+      }
+
+      if (!canAssignMore && !isPlayerAssigned) {
+        buttons += `
+                    <span class="call-status max-units">
+                        <i class="fas fa-users"></i> Maximum Units Assigned
+                    </span>
+                `;
+      }
+
+      return (
+        buttons ||
+        `
+                <span class="call-status assigned">
+                    <i class="fas fa-user-check"></i> Units Assigned
+                </span>
+            `
+      );
+
+    case "in_progress":
+      if (isPlayerAssigned) {
+        return `
+                    <button class="call-btn complete" onclick="completeCall('${callId}')">
+                        <i class="fas fa-check"></i> Complete Call
+                    </button>
+                `;
+      } else {
+        return `
+                    <span class="call-status in-progress">
+                        <i class="fas fa-cogs"></i> Work in Progress
+                    </span>
+                `;
+      }
 
     case "completed":
       return `
@@ -252,102 +375,66 @@ function getActionButtonsForStatus(status, callId) {
   }
 }
 
-// NEW: Handle new call event
+// NEW: Get display text for status
+function getStatusDisplayText(status) {
+  const statusTexts = {
+    pending: "PENDING",
+    assigned: "ASSIGNED",
+    multi_assigned: "MULTIPLE UNITS",
+    in_progress: "IN PROGRESS",
+    completed: "COMPLETED",
+  };
+
+  return statusTexts[status] || status.toUpperCase();
+}
+
+// Enhanced event handlers
 function handleNewCall(callData) {
   console.log("🆕 Handling new call:", callData.id);
 
-  // Update current data
   if (!currentData.activeCalls) {
     currentData.activeCalls = {};
   }
   currentData.activeCalls[callData.id] = callData;
 
-  // Refresh the calls list
   updateActiveCalls(currentData.activeCalls);
 }
 
-// NEW: Handle call assigned event
 function handleCallAssigned(callData) {
   console.log(
     "📞 Handling call assignment:",
     callData.id,
     "Status:",
-    callData.status
+    callData.status,
+    "Units:",
+    callData.unit_details ? callData.unit_details.length : 0
   );
 
-  // Update current data
   if (currentData.activeCalls) {
     currentData.activeCalls[callData.id] = callData;
   }
 
-  // Find and update the specific call element
-  const callElement = document.querySelector(`[data-call-id="${callData.id}"]`);
-  if (callElement) {
-    console.log("🔄 Updating existing call element for:", callData.id);
-
-    // Update the actions section
-    const actionsDiv = callElement.querySelector(".call-actions");
-    if (actionsDiv) {
-      actionsDiv.innerHTML = getActionButtonsForStatus(
-        callData.status,
-        callData.id
-      );
-      console.log(
-        "✅ Updated buttons for call:",
-        callData.id,
-        "to status:",
-        callData.status
-      );
-    }
-
-    // Update the status in meta
-    const metaDiv = callElement.querySelector(".call-meta");
-    if (metaDiv) {
-      const statusSpan = metaDiv.querySelector("span:last-child");
-      if (statusSpan) {
-        statusSpan.innerHTML = `<i class="fas fa-info-circle"></i> Status: <strong>${callData.status.toUpperCase()}</strong>`;
-      }
-    }
-  } else {
-    console.warn(
-      "⚠️ Call element not found for:",
-      callData.id,
-      "- doing full refresh"
-    );
-    updateActiveCalls(currentData.activeCalls);
-  }
+  // Full refresh for assigned calls to update unit details
+  updateActiveCalls(currentData.activeCalls);
 }
 
-// NEW: Handle call status change event
 function handleCallStatusChanged(callId, newStatus, callData) {
   console.log("📋 Handling status change for:", callId, "->", newStatus);
 
-  // Update current data
   if (currentData.activeCalls && currentData.activeCalls[callId]) {
     currentData.activeCalls[callId] = callData;
   }
 
-  // Use the same handler as assignment
-  handleCallAssigned(callData);
+  updateActiveCalls(currentData.activeCalls);
 }
 
-// NEW: Handle call completed event
 function handleCallCompleted(callId) {
   console.log("✅ Handling call completion:", callId);
 
-  // Remove from current data
   if (currentData.activeCalls) {
     delete currentData.activeCalls[callId];
   }
 
-  // Remove the call element from UI
-  const callElement = document.querySelector(`[data-call-id="${callId}"]`);
-  if (callElement) {
-    callElement.remove();
-    console.log("🗑️ Removed call element for:", callId);
-  }
-
-  // Update stats
   updateActiveCalls(currentData.activeCalls);
 }
 
@@ -359,7 +446,7 @@ function updateCallStats(high, medium, low) {
 }
 
 // ====================================================================
-// CALL ACTIONS (FIXED - Jetzt verwenden sie NUI Callbacks korrekt)
+// CALL ACTIONS (ENHANCED FOR MULTI-UNIT)
 // ====================================================================
 
 function assignToCall(callId) {
@@ -372,8 +459,9 @@ function assignToCall(callId) {
 
   console.log("⚡ Sending assignment request via NUI callback...");
 
-  // FIXED: Verwende NUI Callback statt direkte Server Events
-  fetch(`https://${GetParentResourceName()}/assignToCall`, {
+  const resourceName = "fl_core";
+
+  fetch(`https://${resourceName}/assignToCall`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -397,14 +485,78 @@ function assignToCall(callId) {
           "✅ Assignment request sent successfully for call:",
           callId
         );
-        // UI wird durch Server Events aktualisiert
       } else {
         console.error("❌ Assignment failed:", data.message);
-        // Optionally show error to user
+        showNotification({
+          type: "error",
+          title: "Assignment Failed",
+          message: data.message || "Unknown error occurred",
+        });
       }
     })
     .catch((error) => {
       console.error("❌ Error in NUI assignment request:", error);
+      showNotification({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to send assignment request",
+      });
+    });
+}
+
+// NEW: Start working on call
+function startWorkOnCall(callId) {
+  console.log("🚀 startWorkOnCall called with ID:", callId);
+
+  if (!callId) {
+    console.error("❌ No callId provided to startWorkOnCall");
+    return;
+  }
+
+  console.log("⚡ Sending start work request via NUI callback...");
+
+  const resourceName = "fl_core";
+
+  fetch(`https://${resourceName}/startWorkOnCall`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      callId: callId,
+    }),
+  })
+    .then((response) => {
+      console.log("📡 NUI Start Work response received:", response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      console.log("📨 NUI Start Work response data:", data);
+
+      if (data.success) {
+        console.log(
+          "✅ Start work request sent successfully for call:",
+          callId
+        );
+      } else {
+        console.error("❌ Start work failed:", data.message);
+        showNotification({
+          type: "error",
+          title: "Start Work Failed",
+          message: data.message || "Unknown error occurred",
+        });
+      }
+    })
+    .catch((error) => {
+      console.error("❌ Error in NUI start work request:", error);
+      showNotification({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to send start work request",
+      });
     });
 }
 
@@ -418,8 +570,9 @@ function completeCall(callId) {
 
   console.log("⚡ Sending completion request via NUI callback...");
 
-  // FIXED: Verwende NUI Callback statt direkte Server Events
-  fetch(`https://${GetParentResourceName()}/completeCall`, {
+  const resourceName = "fl_core";
+
+  fetch(`https://${resourceName}/completeCall`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -443,13 +596,22 @@ function completeCall(callId) {
           "✅ Completion request sent successfully for call:",
           callId
         );
-        // UI wird durch Server Events aktualisiert
       } else {
         console.error("❌ Completion failed:", data.message);
+        showNotification({
+          type: "error",
+          title: "Completion Failed",
+          message: data.message || "Unknown error occurred",
+        });
       }
     })
     .catch((error) => {
       console.error("❌ Error in NUI completion request:", error);
+      showNotification({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to send completion request",
+      });
     });
 }
 
@@ -700,7 +862,7 @@ function showNotification(data) {
 }
 
 // ====================================================================
-// UI MANAGEMENT (FIXED - Besseres Error Handling)
+// UI MANAGEMENT (unchanged)
 // ====================================================================
 
 function hideAllUIs() {
@@ -729,8 +891,10 @@ function hideAllUIs() {
 function closeUI() {
   console.log("❌ Close UI function called");
 
+  const resourceName = "fl_core";
+
   // Send close signal to game via NUI callback
-  fetch(`https://${GetParentResourceName()}/closeUI`, {
+  fetch(`https://${resourceName}/closeUI`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -779,21 +943,7 @@ document.addEventListener("keydown", function (event) {
 });
 
 // ====================================================================
-// UTILITY FUNCTIONS (FIXED - Bessere Resource Name Detection)
-// ====================================================================
-
-function GetParentResourceName() {
-  // FIXED: Bessere Resource Name Detection
-  if (window.location.hostname) {
-    return window.location.hostname;
-  }
-
-  // Fallback für lokale Tests
-  return "fl_core";
-}
-
-// ====================================================================
-// ERROR HANDLING (IMPROVED)
+// ERROR HANDLING (unchanged)
 // ====================================================================
 
 window.addEventListener("error", function (event) {
@@ -811,7 +961,7 @@ window.addEventListener("unhandledrejection", function (event) {
   console.error("❌ FL UI Promise Details:", event);
 });
 
-// Add CSS animation for notification slide out
+// Add CSS for multi-unit styling
 const style = document.createElement("style");
 style.textContent = `
     @keyframes notificationSlideOut {
@@ -840,9 +990,95 @@ style.textContent = `
     .no-calls p {
         font-size: 16px;
     }
+
+    /* Multi-Unit Styling */
+    .assigned-units {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        margin: 10px 0;
+        padding: 12px;
+    }
+
+    .units-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #ecf0f1;
+        font-size: 14px;
+    }
+
+    .units-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .units-list .unit-item {
+        background: rgba(52, 152, 219, 0.2);
+        border: 1px solid rgba(52, 152, 219, 0.4);
+        border-radius: 6px;
+        padding: 8px 12px;
+        min-width: 120px;
+    }
+
+    .unit-callsign {
+        font-weight: 600;
+        font-size: 14px;
+        color: #3498db;
+    }
+
+    .unit-name {
+        font-size: 12px;
+        color: #ecf0f1;
+        margin-top: 2px;
+    }
+
+    .unit-rank {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-top: 2px;
+    }
+
+    /* Enhanced Button Styling */
+    .call-btn.secondary {
+        background: rgba(52, 152, 219, 0.7);
+    }
+
+    .call-btn.secondary:hover {
+        background: rgba(52, 152, 219, 0.9);
+    }
+
+    .call-btn.start-work {
+        background: #f39c12;
+        color: white;
+    }
+
+    .call-btn.start-work:hover {
+        background: #e67e22;
+    }
+
+    .call-status.max-units {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+        padding: 6px 12px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .call-status.in-progress {
+        background: rgba(243, 156, 18, 0.3);
+        color: #f39c12;
+        padding: 6px 12px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+    }
 `;
 document.head.appendChild(style);
 
 console.log(
-  "🎉 FL Emergency Services UI script loaded successfully with FIXED NUI Callbacks"
+  "🎉 FL Emergency Services Multi-Unit UI script loaded successfully"
 );
