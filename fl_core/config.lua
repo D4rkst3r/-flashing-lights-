@@ -28,36 +28,39 @@ Config.EmergencyServices = {
     ['fire'] = {
         label = 'Fire Department',
         shortname = 'FD',
-        color = '#e74c3c', -- Red
-        blip = 436,        -- Fire station blip
+        color = '#e74c3c',
+        blip = 436,
+        icon = 'fas fa-fire', -- NEW
         uniform_type = 'fire',
-        vehicles = {
-            'firetruk', -- Fire Truck
-            'ambulance' -- For rescue operations
+        vehicles = {          -- NEW
+            'firetruk',
+            'ambulance'
         }
     },
     ['police'] = {
         label = 'Police Department',
         shortname = 'PD',
-        color = '#3498db', -- Blue
-        blip = 60,         -- Police station blip
+        color = '#3498db',
+        blip = 60,
+        icon = 'fas fa-shield-alt', -- NEW
         uniform_type = 'police',
-        vehicles = {
+        vehicles = {                -- NEW
             'police',
             'police2',
             'police3',
-            'policeb' -- Police bike
+            'policeb'
         }
     },
     ['ems'] = {
         label = 'Emergency Medical Services',
         shortname = 'EMS',
-        color = '#2ecc71', -- Green
-        blip = 61,         -- Hospital blip
+        color = '#2ecc71',
+        blip = 61,
+        icon = 'fas fa-ambulance', -- NEW
         uniform_type = 'ems',
-        vehicles = {
+        vehicles = {               -- NEW
             'ambulance',
-            'lguard' -- Lifeguard vehicle
+            'lguard'
         }
     }
 }
@@ -349,60 +352,28 @@ Config.UseAdvancedUI = true  -- Use UI menus instead of direct toggle
 Config.TargetSystem = 'auto' -- 'qtarget', 'ox_target', 'qb-target', or 'auto'
 
 -- Add icons to existing service config
-Config.EmergencyServices = {
-    ['fire'] = {
-        label = 'Fire Department',
-        shortname = 'FD',
-        color = '#e74c3c',
-        blip = 436,
-        icon = 'fas fa-fire', -- NEW
-        uniform_type = 'fire',
-        vehicles = {          -- NEW
-            'firetruk',
-            'ambulance'
-        }
-    },
-    ['police'] = {
-        label = 'Police Department',
-        shortname = 'PD',
-        color = '#3498db',
-        blip = 60,
-        icon = 'fas fa-shield-alt', -- NEW
-        uniform_type = 'police',
-        vehicles = {                -- NEW
-            'police',
-            'police2',
-            'police3',
-            'policeb'
-        }
-    },
-    ['ems'] = {
-        label = 'Emergency Medical Services',
-        shortname = 'EMS',
-        color = '#2ecc71',
-        blip = 61,
-        icon = 'fas fa-ambulance', -- NEW
-        uniform_type = 'ems',
-        vehicles = {               -- NEW
-            'ambulance',
-            'lguard'
-        }
-    }
-}
+
 
 -- Discord Configuration (NEW SECTION)
 Config.Discord = {
     enabled = true,
     webhooks = {
-        fire = '',                                      -- YOUR_FIRE_WEBHOOK_URL
-        police = '',                                    -- YOUR_POLICE_WEBHOOK_URL
-        ems = '',                                       -- YOUR_EMS_WEBHOOK_URL
-        admin = '',                                     -- YOUR_ADMIN_WEBHOOK_URL
-        duty = '',                                      -- YOUR_DUTY_WEBHOOK_URL
-        emergency = ''                                  -- YOUR_EMERGENCY_WEBHOOK_URL
+        fire =
+        'https://discord.com/api/webhooks/1393779330420834396/PVtGoNEAYhl2qcr5z664ZwjC-AgrcQxKU0OlWQlxPznwfXCXSEWzPslsOGVFbQOmNerp',        -- YOUR_FIRE_WEBHOOK_URL
+        police =
+        'https://discord.com/api/webhooks/1393779475849809961/4FbHgRvcWTQg699mvVTf77PGglAalVJUEEoYAM1k9DGIKNFZCxKevJfwwtNe2p0-FjOk',        -- YOUR_POLICE_WEBHOOK_URL
+        ems =
+        'https://discord.com/api/webhooks/1393779560260304957/4CIG9IYTaErT_vub7aNPPHtm31PNrvnpwd34FtF6Zs5BM2zz4RtQiZQVSwZME3uB15iV',        -- YOUR_EMS_WEBHOOK_URL
+        admin =
+        'https://discord.com/api/webhooks/1393779655139528856/0FDOVON9EXE-kyQaV3W7aGBj8T4LSO9ZUQOAS0948vSOXwwMTD9Ax43Q-OyBw2dXlQlO',        -- YOUR_ADMIN_WEBHOOK_URL
+        duty =
+        'https://discord.com/api/webhooks/1393779733564751983/v3706PVrd9HI_5AtAP9kjvVzvo6ny6SBb98C-NtAoA6MsFsZf9G10Otqyel4Xtjcv_Yy',        -- YOUR_DUTY_WEBHOOK_URL
+        emergency =
+        'https://discord.com/api/webhooks/1393779817085927565/iC5YKq7uqghQ4keHKZ768OL5-wmPz6yL1x3SrWd6sESidait2DJm6NzIUSLwHsJwtuea'         -- YOUR_EMERGENCY_WEBHOOK_URL
     },
-    server_logo = 'https://i.imgur.com/your-logo.png',  -- Optional
-    footer_icon = 'https://i.imgur.com/your-footer.png' -- Optional
+    server_logo = 'https://i.imgur.com/your-logo.png',                                                                                      -- Optional
+    footer_icon =
+    'https://i.imgur.com/your-footer.png'                                                                                                   -- Optional
 }
 
 -- Sound Configuration (NEW SECTION)
