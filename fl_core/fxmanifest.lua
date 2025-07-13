@@ -7,7 +7,7 @@ version '2.0.0'
 
 -- Dependencies
 dependency 'qb-core'
-dependency 'qtarget' -- or 'ox_target' or 'qb-target'
+dependency 'qb-target' -- or 'ox_target' or 'qb-target'
 
 -- Shared scripts
 shared_scripts {
