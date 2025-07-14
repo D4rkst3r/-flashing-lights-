@@ -1,5 +1,6 @@
 -- ====================================================================
--- FL EMERGENCY VEHICLES - MEMORY MANAGEMENT SYSTEM
+-- FL EMERGENCY VEHICLES - MEMORY MANAGEMENT SYSTEM (SELF-FEHLER BEHOBEN)
+-- KRITISCHER FIX: 'self' durch 'FL.VehicleManager' ersetzt
 -- ====================================================================
 
 FL.VehicleManager = {
@@ -7,24 +8,24 @@ FL.VehicleManager = {
     cleanupInterval = 60000, -- 1 minute
     lastCleanup = 0,
 
-    init = function()
+    init = function(self)         -- KORRIGIERT: 'self' Parameter hinzugefügt
         FL.Debug('🚗 Vehicle Manager initialized')
-        self.startCleanupThread()
+        self:startCleanupThread() -- KORRIGIERT: self: syntax verwendet
     end,
 
-    spawnVehicle = function(stationId, vehicleKey, spawnIndex)
+    spawnVehicle = function(self, stationId, vehicleKey, spawnIndex) -- KORRIGIERT: 'self' Parameter
         -- Check vehicle limit before spawning
-        local currentCount = self.getPlayerVehicleCount()
+        local currentCount = self:getPlayerVehicleCount()
 
         if currentCount >= self.maxVehiclesPerPlayer then
-            self.cleanupOldestVehicle()
+            self:cleanupOldestVehicle()
         end
 
         -- Call original spawn function
         SpawnEmergencyVehicle(stationId, vehicleKey, spawnIndex)
     end,
 
-    getPlayerVehicleCount = function()
+    getPlayerVehicleCount = function(self) -- KORRIGIERT: 'self' Parameter
         local count = 0
         for vehicle, data in pairs(FL.Client.spawnedVehicles) do
             if DoesEntityExist(vehicle) then
@@ -34,7 +35,7 @@ FL.VehicleManager = {
         return count
     end,
 
-    cleanupOldestVehicle = function()
+    cleanupOldestVehicle = function(self) -- KORRIGIERT: 'self' Parameter
         local oldestVehicle = nil
         local oldestTime = GetGameTimer()
 
@@ -47,11 +48,11 @@ FL.VehicleManager = {
 
         if oldestVehicle then
             FL.Debug('🗑️ Cleaning up oldest vehicle to make space')
-            self.deleteVehicle(oldestVehicle)
+            self:deleteVehicle(oldestVehicle)
         end
     end,
 
-    deleteVehicle = function(vehicle)
+    deleteVehicle = function(self, vehicle) -- KORRIGIERT: 'self' Parameter
         if FL.Client.spawnedVehicles[vehicle] then
             FL.Client.spawnedVehicles[vehicle] = nil
         end
@@ -66,16 +67,16 @@ FL.VehicleManager = {
         end
     end,
 
-    startCleanupThread = function()
+    startCleanupThread = function(self) -- KORRIGIERT: 'self' Parameter
         CreateThread(function()
             while true do
                 Wait(self.cleanupInterval)
-                self.performCleanup()
+                self:performCleanup()
             end
         end)
     end,
 
-    performCleanup = function()
+    performCleanup = function(self) -- KORRIGIERT: 'self' Parameter
         local cleaned = 0
         local toRemove = {}
 
@@ -100,8 +101,8 @@ FL.VehicleManager = {
     end
 }
 
--- Initialize on resource start
+-- Initialize on resource start (KORRIGIERT: Proper method call)
 CreateThread(function()
-    Wait(5000) -- Wait for main systems to load
-    FL.VehicleManager.init()
+    Wait(5000)               -- Wait for main systems to load
+    FL.VehicleManager:init() -- KORRIGIERT: self: syntax verwendet
 end)

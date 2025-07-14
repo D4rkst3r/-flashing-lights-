@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FL Emergency Services</title>
+    <title>FL Emergency Services - Complete System</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -46,6 +46,85 @@
                         <i class="fas fa-info-circle"></i>
                         Starting duty will automatically equip you with the appropriate uniform and equipment.
                     </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipment Locker UI -->
+    <div id="equipmentUI" class="ui-container hidden">
+        <div class="equipment-modal">
+            <div class="modal-header">
+                <i class="fas fa-toolbox"></i>
+                <h2>Equipment Locker</h2>
+                <button class="close-btn" onclick="closeEquipmentUI()">&times;</button>
+            </div>
+
+            <div class="modal-content">
+                <div class="equipment-info">
+                    <div class="service-badge">
+                        <i id="equipmentServiceIcon" class="fas fa-fire"></i>
+                    </div>
+                    <div class="service-details">
+                        <h3 id="equipmentServiceName">Fire Department Equipment</h3>
+                        <p>Select equipment from your service locker</p>
+                    </div>
+                </div>
+
+                <div class="equipment-grid" id="equipmentGrid">
+                    <!-- Equipment items will be populated here -->
+                </div>
+
+                <div class="equipment-actions">
+                    <button class="btn btn-primary" onclick="takeAllEquipment()">
+                        <i class="fas fa-download"></i>
+                        Take All Equipment
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeEquipmentUI()">
+                        <i class="fas fa-times"></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vehicle Garage UI -->
+    <div id="vehicleUI" class="ui-container hidden">
+        <div class="vehicle-modal">
+            <div class="modal-header">
+                <i class="fas fa-car"></i>
+                <h2>Vehicle Garage</h2>
+                <button class="close-btn" onclick="closeVehicleUI()">&times;</button>
+            </div>
+
+            <div class="modal-content">
+                <div class="garage-info">
+                    <div class="service-badge">
+                        <i id="vehicleServiceIcon" class="fas fa-fire"></i>
+                    </div>
+                    <div class="service-details">
+                        <h3 id="vehicleServiceName">Fire Department Garage</h3>
+                        <p id="vehicleStationName">Station 1 - Vehicle Bay</p>
+                    </div>
+                </div>
+
+                <div class="vehicle-grid" id="vehicleGrid">
+                    <!-- Vehicle options will be populated here -->
+                </div>
+
+                <div class="spawn-points">
+                    <h4><i class="fas fa-map-marker-alt"></i> Spawn Location</h4>
+                    <div class="spawn-options" id="spawnOptions">
+                        <!-- Spawn points will be populated here -->
+                    </div>
+                </div>
+
+                <div class="vehicle-actions">
+                    <button class="btn btn-secondary" onclick="closeVehicleUI()">
+                        <i class="fas fa-times"></i>
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
@@ -159,7 +238,909 @@
         <!-- Notifications will be added here dynamically -->
     </div>
 
+    <style>
+        /* Equipment UI Styles */
+        .equipment-modal,
+        .vehicle-modal {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        .equipment-info,
+        .garage-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .service-badge {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+        }
+
+        .service-badge i {
+            font-size: 28px;
+            color: white;
+        }
+
+        .service-details h3 {
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: white;
+        }
+
+        .service-details p {
+            opacity: 0.8;
+            font-size: 14px;
+            color: white;
+        }
+
+        /* Equipment Grid */
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .equipment-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .equipment-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            border-color: #3498db;
+        }
+
+        .equipment-item.taken {
+            background: rgba(46, 204, 113, 0.3);
+            border-color: #2ecc71;
+        }
+
+        .equipment-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+
+        .equipment-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: white;
+        }
+
+        .equipment-description {
+            font-size: 12px;
+            opacity: 0.7;
+            color: white;
+        }
+
+        .equipment-status {
+            margin-top: 8px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .equipment-status.available {
+            background: rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+
+        .equipment-status.taken {
+            background: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+
+        /* Vehicle Grid */
+        .vehicle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .vehicle-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .vehicle-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            border-color: #3498db;
+        }
+
+        .vehicle-item.selected {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.2);
+        }
+
+        .vehicle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .vehicle-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: white;
+        }
+
+        .vehicle-category {
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: rgba(52, 152, 219, 0.3);
+            color: #3498db;
+        }
+
+        .vehicle-specs {
+            margin-bottom: 10px;
+        }
+
+        .vehicle-spec {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .vehicle-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .vehicle-feature {
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 9px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        /* Spawn Points */
+        .spawn-points {
+            margin-bottom: 20px;
+        }
+
+        .spawn-points h4 {
+            color: white;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .spawn-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .spawn-point {
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            color: white;
+            font-size: 14px;
+        }
+
+        .spawn-point:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .spawn-point.selected {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.3);
+        }
+
+        .spawn-point.occupied {
+            background: rgba(231, 76, 60, 0.3);
+            border-color: #e74c3c;
+            cursor: not-allowed;
+        }
+
+        /* Equipment & Vehicle Actions */
+        .equipment-actions,
+        .vehicle-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        /* Scrollbar for Equipment/Vehicle lists */
+        .equipment-grid::-webkit-scrollbar,
+        .vehicle-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .equipment-grid::-webkit-scrollbar-track,
+        .vehicle-grid::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .equipment-grid::-webkit-scrollbar-thumb,
+        .vehicle-grid::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+
+            .equipment-modal,
+            .vehicle-modal {
+                width: 95vw;
+                max-height: 90vh;
+            }
+
+            .equipment-grid,
+            .vehicle-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <!-- Load the main script FIRST, then our extensions -->
     <script src="js/script.js"></script>
+
+    <script>
+        // Global state for equipment and vehicles
+        let currentEquipmentData = null;
+        let currentVehicleData = null;
+        let selectedVehicle = null;
+        let selectedSpawnPoint = 1;
+
+        // ====================================================================
+        // EQUIPMENT SYSTEM
+        // ====================================================================
+
+        // Show equipment menu
+        function showEquipmentMenu(data) {
+            console.log('📦 Showing equipment menu:', data);
+
+            currentEquipmentData = data;
+
+            // Update service info
+            const serviceIcon = document.getElementById('equipmentServiceIcon');
+            const serviceName = document.getElementById('equipmentServiceName');
+
+            const serviceConfig = getServiceConfig(data.service);
+            if (serviceIcon) serviceIcon.className = serviceConfig.icon;
+            if (serviceName) serviceName.textContent = serviceConfig.name + ' Equipment';
+
+            // Populate equipment grid
+            populateEquipmentGrid(data.equipment || []);
+
+            // Show UI
+            const equipmentUI = document.getElementById('equipmentUI');
+            if (equipmentUI) {
+                equipmentUI.classList.remove('hidden');
+            }
+        }
+
+        // Populate equipment grid
+        function populateEquipmentGrid(equipment) {
+            const grid = document.getElementById('equipmentGrid');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+
+            if (!equipment || equipment.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">
+                        <i class="fas fa-box-open" style="font-size: 48px; margin-bottom: 15px; opacity: 0.3;"></i>
+                        <p>No equipment available</p>
+                    </div>
+                `;
+                return;
+            }
+
+            equipment.forEach((item, index) => {
+                const equipmentInfo = getEquipmentInfo(item);
+                const isAvailable = Math.random() > 0.3; // Simulate availability
+
+                const itemElement = document.createElement('div');
+                itemElement.className = `equipment-item ${isAvailable ? 'available' : 'taken'}`;
+                itemElement.onclick = () => takeEquipmentItem(item);
+
+                itemElement.innerHTML = `
+                    <div class="equipment-icon">
+                        <i class="${equipmentInfo.icon}"></i>
+                    </div>
+                    <div class="equipment-name">${equipmentInfo.name}</div>
+                    <div class="equipment-description">${equipmentInfo.description}</div>
+                    <div class="equipment-status ${isAvailable ? 'available' : 'taken'}">
+                        ${isAvailable ? 'Available' : 'In Use'}
+                    </div>
+                `;
+
+                grid.appendChild(itemElement);
+            });
+        }
+
+        // Get equipment info for display
+        function getEquipmentInfo(itemName) {
+            const equipmentMap = {
+                // Fire Equipment
+                'fire_extinguisher': {
+                    name: 'Fire Extinguisher',
+                    icon: 'fas fa-fire-extinguisher',
+                    description: 'Portable fire suppression device'
+                },
+                'fire_axe': {
+                    name: 'Fire Axe',
+                    icon: 'fas fa-hammer',
+                    description: 'Heavy-duty rescue tool'
+                },
+                'breathing_apparatus': {
+                    name: 'Breathing Apparatus',
+                    icon: 'fas fa-mask',
+                    description: 'Self-contained breathing apparatus'
+                },
+                'fire_hose': {
+                    name: 'Fire Hose',
+                    icon: 'fas fa-grip-lines',
+                    description: 'High-pressure water delivery system'
+                },
+                'halligan_tool': {
+                    name: 'Halligan Tool',
+                    icon: 'fas fa-wrench',
+                    description: 'Multi-purpose prying tool'
+                },
+                'thermal_camera': {
+                    name: 'Thermal Camera',
+                    icon: 'fas fa-camera',
+                    description: 'Heat detection imaging device'
+                },
+
+                // Police Equipment
+                'handcuffs': {
+                    name: 'Handcuffs',
+                    icon: 'fas fa-link',
+                    description: 'Restraint device for suspects'
+                },
+                'radar_gun': {
+                    name: 'Radar Gun',
+                    icon: 'fas fa-tachometer-alt',
+                    description: 'Speed detection device'
+                },
+                'breathalyzer': {
+                    name: 'Breathalyzer',
+                    icon: 'fas fa-wine-bottle',
+                    description: 'Blood alcohol content tester'
+                },
+                'spike_strips': {
+                    name: 'Spike Strips',
+                    icon: 'fas fa-road',
+                    description: 'Tire deflation device'
+                },
+                'police_radio': {
+                    name: 'Police Radio',
+                    icon: 'fas fa-broadcast-tower',
+                    description: 'Encrypted communication device'
+                },
+                'body_camera': {
+                    name: 'Body Camera',
+                    icon: 'fas fa-video',
+                    description: 'Wearable recording device'
+                },
+
+                // EMS Equipment
+                'defibrillator': {
+                    name: 'Defibrillator',
+                    icon: 'fas fa-heartbeat',
+                    description: 'Cardiac emergency device'
+                },
+                'medical_bag': {
+                    name: 'Medical Bag',
+                    icon: 'fas fa-briefcase-medical',
+                    description: 'Portable medical supplies'
+                },
+                'stretcher': {
+                    name: 'Stretcher',
+                    icon: 'fas fa-procedures',
+                    description: 'Patient transport device'
+                },
+                'oxygen_mask': {
+                    name: 'Oxygen Mask',
+                    icon: 'fas fa-mask',
+                    description: 'Respiratory assistance device'
+                },
+                'bandages': {
+                    name: 'Bandages',
+                    icon: 'fas fa-band-aid',
+                    description: 'Wound care supplies'
+                },
+                'morphine': {
+                    name: 'Morphine',
+                    icon: 'fas fa-syringe',
+                    description: 'Pain management medication'
+                }
+            };
+
+            return equipmentMap[itemName] || {
+                name: itemName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                icon: 'fas fa-box',
+                description: 'Emergency equipment'
+            };
+        }
+
+        // Take individual equipment item
+        function takeEquipmentItem(itemName) {
+            console.log('📦 Taking equipment item:', itemName);
+
+            // Send to game
+            sendNUICallback('takeEquipment', { itemName: itemName })
+                .then(() => {
+                    showNotification({
+                        type: 'success',
+                        title: 'Equipment Taken',
+                        message: 'Successfully took ' + getEquipmentInfo(itemName).name
+                    });
+
+                    // Update UI to show item as taken
+                    updateEquipmentItemStatus(itemName, false);
+                })
+                .catch(error => {
+                    showNotification({
+                        type: 'error',
+                        title: 'Equipment Error',
+                        message: 'Failed to take equipment: ' + error.message
+                    });
+                });
+        }
+
+        // Take all equipment
+        function takeAllEquipment() {
+            if (!currentEquipmentData || !currentEquipmentData.equipment) {
+                showNotification({
+                    type: 'error',
+                    title: 'No Equipment',
+                    message: 'No equipment available to take'
+                });
+                return;
+            }
+
+            console.log('📦 Taking all equipment');
+
+            // Send to game
+            sendNUICallback('takeAllEquipment', { service: currentEquipmentData.service })
+                .then(() => {
+                    showNotification({
+                        type: 'success',
+                        title: 'Equipment Loaded',
+                        message: 'All equipment has been taken from the locker'
+                    });
+
+                    closeEquipmentUI();
+                })
+                .catch(error => {
+                    showNotification({
+                        type: 'error',
+                        title: 'Equipment Error',
+                        message: 'Failed to take equipment: ' + error.message
+                    });
+                });
+        }
+
+        // Update equipment item status
+        function updateEquipmentItemStatus(itemName, isAvailable) {
+            const items = document.querySelectorAll('.equipment-item');
+            items.forEach(item => {
+                const nameElement = item.querySelector('.equipment-name');
+                if (nameElement && nameElement.textContent.toLowerCase().includes(itemName.replace(/_/g, ' '))) {
+                    item.className = `equipment-item ${isAvailable ? 'available' : 'taken'}`;
+                    const statusElement = item.querySelector('.equipment-status');
+                    if (statusElement) {
+                        statusElement.className = `equipment-status ${isAvailable ? 'available' : 'taken'}`;
+                        statusElement.textContent = isAvailable ? 'Available' : 'In Use';
+                    }
+                }
+            });
+        }
+
+        // Close equipment UI
+        function closeEquipmentUI() {
+            const equipmentUI = document.getElementById('equipmentUI');
+            if (equipmentUI) {
+                equipmentUI.classList.add('hidden');
+            }
+            currentEquipmentData = null;
+        }
+
+        // ====================================================================
+        // VEHICLE SYSTEM
+        // ====================================================================
+
+        // Show vehicle menu
+        function showVehicleMenu(data) {
+            console.log('🚗 Showing vehicle menu:', data);
+
+            currentVehicleData = data;
+
+            // Update service info
+            const serviceIcon = document.getElementById('vehicleServiceIcon');
+            const serviceName = document.getElementById('vehicleServiceName');
+            const stationName = document.getElementById('vehicleStationName');
+
+            const serviceConfig = getServiceConfig(data.service);
+            if (serviceIcon) serviceIcon.className = serviceConfig.icon;
+            if (serviceName) serviceName.textContent = serviceConfig.name + ' Garage';
+            if (stationName) stationName.textContent = (data.stationName || 'Unknown Station') + ' - Vehicle Bay';
+
+            // Populate vehicle grid
+            populateVehicleGrid(data.vehicles || {});
+
+            // Populate spawn points
+            populateSpawnPoints(data.spawnPoints || []);
+
+            // Show UI
+            const vehicleUI = document.getElementById('vehicleUI');
+            if (vehicleUI) {
+                vehicleUI.classList.remove('hidden');
+            }
+        }
+
+        // Populate vehicle grid
+        function populateVehicleGrid(vehicles) {
+            const grid = document.getElementById('vehicleGrid');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+
+            if (!vehicles || Object.keys(vehicles).length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">
+                        <i class="fas fa-car" style="font-size: 48px; margin-bottom: 15px; opacity: 0.3;"></i>
+                        <p>No vehicles available</p>
+                    </div>
+                `;
+                return;
+            }
+
+            Object.entries(vehicles).forEach(([vehicleKey, vehicleData]) => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'vehicle-item';
+                itemElement.onclick = () => selectVehicle(vehicleKey, vehicleData);
+
+                const features = vehicleData.features || {};
+                const featuresList = Object.entries(features)
+                    .filter(([key, value]) => value)
+                    .map(([key]) => `<span class="vehicle-feature">${key.replace(/_/g, ' ')}</span>`)
+                    .join('');
+
+                itemElement.innerHTML = `
+                    <div class="vehicle-header">
+                        <div class="vehicle-name">${vehicleData.label || vehicleKey}</div>
+                        <div class="vehicle-category">${vehicleData.category || 'vehicle'}</div>
+                    </div>
+                    <div class="vehicle-specs">
+                        <div class="vehicle-spec">
+                            <span><i class="fas fa-users"></i> Seats:</span>
+                            <span>${vehicleData.seats || 2}</span>
+                        </div>
+                        <div class="vehicle-spec">
+                            <span><i class="fas fa-gas-pump"></i> Fuel:</span>
+                            <span>${vehicleData.fuel_capacity || 50}L</span>
+                        </div>
+                        <div class="vehicle-spec">
+                            <span><i class="fas fa-toolbox"></i> Storage:</span>
+                            <span>${vehicleData.equipment_storage || 0} slots</span>
+                        </div>
+                        ${vehicleData.required_rank ? `
+                        <div class="vehicle-spec">
+                            <span><i class="fas fa-star"></i> Rank:</span>
+                            <span>${vehicleData.required_rank}+</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="vehicle-features">
+                        ${featuresList}
+                    </div>
+                `;
+
+                grid.appendChild(itemElement);
+            });
+        }
+
+        // Select vehicle
+        function selectVehicle(vehicleKey, vehicleData) {
+            console.log('🚗 Selected vehicle:', vehicleKey);
+
+            selectedVehicle = { key: vehicleKey, data: vehicleData };
+
+            // Update visual selection
+            document.querySelectorAll('.vehicle-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            // Update spawn vehicle button
+            updateSpawnButton();
+        }
+
+        // Populate spawn points
+        function populateSpawnPoints(spawnPoints) {
+            const container = document.getElementById('spawnOptions');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (!spawnPoints || spawnPoints.length === 0) {
+                container.innerHTML = `
+                    <div class="spawn-point selected" onclick="selectSpawnPoint(1)">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Default Spawn
+                    </div>
+                `;
+                selectedSpawnPoint = 1;
+                return;
+            }
+
+            spawnPoints.forEach((spawnPoint, index) => {
+                const isOccupied = Math.random() > 0.7; // Simulate occupied spawn points
+                const pointIndex = index + 1;
+
+                const pointElement = document.createElement('div');
+                pointElement.className = `spawn-point ${pointIndex === selectedSpawnPoint ? 'selected' : ''} ${isOccupied ? 'occupied' : ''}`;
+                pointElement.onclick = () => !isOccupied && selectSpawnPoint(pointIndex);
+
+                pointElement.innerHTML = `
+                    <i class="fas fa-map-marker-alt"></i>
+                    Bay ${pointIndex} ${isOccupied ? '(Occupied)' : ''}
+                `;
+
+                container.appendChild(pointElement);
+            });
+
+            updateSpawnButton();
+        }
+
+        // Select spawn point
+        function selectSpawnPoint(pointIndex) {
+            console.log('📍 Selected spawn point:', pointIndex);
+
+            selectedSpawnPoint = pointIndex;
+
+            // Update visual selection
+            document.querySelectorAll('.spawn-point').forEach((point, index) => {
+                point.classList.remove('selected');
+                if (index + 1 === pointIndex) {
+                    point.classList.add('selected');
+                }
+            });
+
+            updateSpawnButton();
+        }
+
+        // Update spawn button
+        function updateSpawnButton() {
+            let actionsContainer = document.querySelector('.vehicle-actions');
+
+            // Remove existing spawn button
+            const existingBtn = actionsContainer.querySelector('.spawn-vehicle-btn');
+            if (existingBtn) {
+                existingBtn.remove();
+            }
+
+            // Add spawn button if vehicle is selected
+            if (selectedVehicle) {
+                const spawnBtn = document.createElement('button');
+                spawnBtn.className = 'btn btn-primary spawn-vehicle-btn';
+                spawnBtn.onclick = spawnSelectedVehicle;
+                spawnBtn.innerHTML = `
+                    <i class="fas fa-plus"></i>
+                    Spawn ${selectedVehicle.data.label}
+                `;
+
+                // Insert before close button
+                const closeBtn = actionsContainer.querySelector('.btn-secondary');
+                actionsContainer.insertBefore(spawnBtn, closeBtn);
+            }
+        }
+
+        // Spawn selected vehicle
+        function spawnSelectedVehicle() {
+            if (!selectedVehicle || !currentVehicleData) {
+                showNotification({
+                    type: 'error',
+                    title: 'No Vehicle Selected',
+                    message: 'Please select a vehicle first'
+                });
+                return;
+            }
+
+            console.log('🚗 Spawning vehicle:', selectedVehicle.key, 'at spawn point:', selectedSpawnPoint);
+
+            // Send to game
+            sendNUICallback('spawnVehicle', {
+                stationId: currentVehicleData.stationId,
+                vehicleKey: selectedVehicle.key,
+                spawnIndex: selectedSpawnPoint
+            })
+                .then(() => {
+                    showNotification({
+                        type: 'success',
+                        title: 'Vehicle Spawned',
+                        message: selectedVehicle.data.label + ' has been spawned at Bay ' + selectedSpawnPoint
+                    });
+
+                    closeVehicleUI();
+                })
+                .catch(error => {
+                    showNotification({
+                        type: 'error',
+                        title: 'Spawn Failed',
+                        message: 'Failed to spawn vehicle: ' + error.message
+                    });
+                });
+        }
+
+        // Close vehicle UI
+        function closeVehicleUI() {
+            const vehicleUI = document.getElementById('vehicleUI');
+            if (vehicleUI) {
+                vehicleUI.classList.add('hidden');
+            }
+            currentVehicleData = null;
+            selectedVehicle = null;
+            selectedSpawnPoint = 1;
+        }
+
+        // ====================================================================
+        // SERVICE CONFIGURATION
+        // ====================================================================
+
+        function getServiceConfig(serviceName) {
+            const serviceConfigs = {
+                fire: {
+                    icon: 'fas fa-fire',
+                    name: 'Fire Department'
+                },
+                police: {
+                    icon: 'fas fa-shield-alt',
+                    name: 'Police Department'
+                },
+                ems: {
+                    icon: 'fas fa-ambulance',
+                    name: 'Emergency Medical Services'
+                }
+            };
+
+            return serviceConfigs[serviceName] || {
+                icon: 'fas fa-badge',
+                name: 'Emergency Services'
+            };
+        }
+
+        // ====================================================================
+        // ENHANCED MESSAGE HANDLER
+        // ====================================================================
+
+        // Override the existing message handler to include new message types
+        const originalMessageHandler = window.onmessage;
+
+        window.addEventListener("message", function (event) {
+            const data = event.data;
+
+            if (!data || typeof data !== "object" || !data.type) {
+                return;
+            }
+
+            console.log("📨 Received message:", data.type, data);
+
+            try {
+                switch (data.type) {
+                    // New cases for equipment and vehicles
+                    case "showEquipmentMenu":
+                        showEquipmentMenu(data.data);
+                        break;
+                    case "showVehicleMenu":
+                        showVehicleMenu(data.data);
+                        break;
+                    case "closeEquipmentMenu":
+                        closeEquipmentUI();
+                        break;
+                    case "closeVehicleMenu":
+                        closeVehicleUI();
+                        break;
+
+                    // Let the original handler process other messages
+                    default:
+                        // The original script.js will handle MDT, calls, etc.
+                        break;
+                }
+            } catch (error) {
+                console.error("❌ Error handling message:", error);
+            }
+        });
+
+        // Enhanced close UI function
+        const originalCloseUI = window.closeUI;
+        window.closeUI = function () {
+            // Close our new UIs first
+            closeEquipmentUI();
+            closeVehicleUI();
+
+            // Then call the original close function
+            if (originalCloseUI) {
+                originalCloseUI();
+            } else {
+                // Fallback
+                hideAllUIs();
+                sendNUICallback("closeUI", {}).catch(console.error);
+            }
+        };
+
+        // Enhanced keyboard handler
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" || event.code === "Escape") {
+                const equipmentUI = document.getElementById('equipmentUI');
+                const vehicleUI = document.getElementById('vehicleUI');
+
+                if (equipmentUI && !equipmentUI.classList.contains('hidden')) {
+                    closeEquipmentUI();
+                    event.preventDefault();
+                    return false;
+                }
+
+                if (vehicleUI && !vehicleUI.classList.contains('hidden')) {
+                    closeVehicleUI();
+                    event.preventDefault();
+                    return false;
+                }
+            }
+        });
+
+        console.log('🎉 FL Emergency Services Complete System loaded successfully!');
+        console.log('📦 Equipment System: Ready');
+        console.log('🚗 Vehicle System: Ready');
+        console.log('📱 MDT System: Ready');
+        console.log('🎯 Target Integration: Ready');
+    </script>
 </body>
 
 </html>

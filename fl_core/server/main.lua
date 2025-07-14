@@ -1,6 +1,6 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (FINAL VERSION)
--- ALLE FIXES IMPLEMENTIERT + KORREKTES RATE LIMITING
+-- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (RATE LIMITING FIX)
+-- KRITISCHER FIX: Rate Limiting Middleware VOR Verwendung definiert (Line 681 Fix)
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
@@ -13,6 +13,79 @@ FL.Server = {
     DatabaseAvailable = false, -- Track database connection status
     LastCleanup = 0            -- Track last cleanup time
 }
+
+-- ====================================================================
+-- RATE LIMITING SYSTEM (FRÜH DEFINIERT - FIX FÜR LINE 681)
+-- ====================================================================
+
+-- Simple rate limiting storage
+FL.RateLimits = {}
+
+-- Rate limit middleware function (KORRIGIERT: VOR Verwendung definiert)
+function FL.RateLimitMiddleware(eventName, limit, window)
+    limit = limit or 10
+    window = window or 60000 -- 1 minute default
+
+    return function(handler)
+        return function(...)
+            local now = GetGameTimer()
+            local key = source .. '_' .. eventName
+            local requests = FL.RateLimits[key] or {}
+
+            -- Clean old requests
+            local cleanRequests = {}
+            for _, timestamp in pairs(requests) do
+                if now - timestamp <= window then
+                    table.insert(cleanRequests, timestamp)
+                end
+            end
+
+            if #cleanRequests >= limit then
+                FL.Debug('⚠️ Rate limit exceeded for player ' .. source .. ' action: ' .. eventName)
+                TriggerClientEvent('QBCore:Notify', source, 'Rate limit exceeded. Please wait before trying again.',
+                    'error')
+                return
+            end
+
+            -- Add current request
+            table.insert(cleanRequests, now)
+            FL.RateLimits[key] = cleanRequests
+
+            -- Call original handler
+            handler(...)
+        end
+    end
+end
+
+-- Cleanup rate limits periodically
+CreateThread(function()
+    while true do
+        Wait(300000) -- 5 minutes
+
+        local now = GetGameTimer()
+        local cleaned = 0
+
+        for key, requests in pairs(FL.RateLimits) do
+            local cleanRequests = {}
+            for _, timestamp in pairs(requests) do
+                if now - timestamp <= 300000 then -- Keep 5 minutes of data
+                    table.insert(cleanRequests, timestamp)
+                end
+            end
+
+            if #cleanRequests == 0 then
+                FL.RateLimits[key] = nil
+                cleaned = cleaned + 1
+            else
+                FL.RateLimits[key] = cleanRequests
+            end
+        end
+
+        if cleaned > 0 then
+            FL.Debug('🧹 Cleaned ' .. cleaned .. ' old rate limit entries')
+        end
+    end
+end)
 
 -- Mapping between QBCore jobs and FL services
 FL.JobMapping = {
@@ -674,10 +747,10 @@ function GetPlayerServiceInfo(source)
 end
 
 -- ====================================================================
--- SERVER EVENTS (MIT KORREKTEM RATE LIMITING)
+-- SERVER EVENTS (MIT KORREKTEM RATE LIMITING - FIX KOMPLETT)
 -- ====================================================================
 
--- Enhanced server event for assignment with rate limiting
+-- Enhanced server event for assignment with rate limiting (KORRIGIERT: Function jetzt verfügbar)
 RegisterServerEvent('fl_core:assignToCallFromUI', FL.RateLimitMiddleware('assignToCall', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: assignToCallFromUI - CallID: ' .. tostring(callId))
 
@@ -703,7 +776,7 @@ RegisterServerEvent('fl_core:assignToCallFromUI', FL.RateLimitMiddleware('assign
     })
 end))
 
--- Enhanced server event for starting work on call
+-- Enhanced server event for starting work on call (KORRIGIERT: Function jetzt verfügbar)
 RegisterServerEvent('fl_core:startWorkOnCallFromUI', FL.RateLimitMiddleware('startWork', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: startWorkOnCallFromUI - CallID: ' .. tostring(callId))
 
@@ -729,7 +802,7 @@ RegisterServerEvent('fl_core:startWorkOnCallFromUI', FL.RateLimitMiddleware('sta
     })
 end))
 
--- Enhanced server event for completion
+-- Enhanced server event for completion (KORRIGIERT: Function jetzt verfügbar)
 RegisterServerEvent('fl_core:completeCallFromUI', FL.RateLimitMiddleware('completeCall', 3, 60000)(function(callId)
     FL.Debug('📱 Server Event: completeCallFromUI - CallID: ' .. tostring(callId))
 
@@ -1192,4 +1265,4 @@ AddEventHandler('playerDropped', function(reason)
     end
 end)
 
-FL.Debug('🎉 FL Core server loaded with COMPLETE ROBUSTNESS & PERFORMANCE FIXES')
+FL.Debug('🎉 FL Core server loaded with COMPLETE ROBUSTNESS & PERFORMANCE FIXES (RATE LIMITING FIXED)')
