@@ -777,27 +777,66 @@ CreateThread(function()
 end)
 
 -- ====================================================================
--- SIMPLIFIED ADMIN COMMANDS WITH DATABASE INTEGRATION
+-- DATABASE COMMANDS PERMISSION FIX für fl_core/server/database.lua
+-- Diese Commands ersetzen die existierenden in database.lua
 -- ====================================================================
 
--- Database status command
+-- Enhanced permission check function (same as in other files)
+local function HasAdminPermission(source)
+    if not source or source <= 0 then
+        return false
+    end
+
+    -- Method 1: QBCore permission check
+    if QBCore and QBCore.Functions and QBCore.Functions.HasPermission then
+        if QBCore.Functions.HasPermission(source, 'admin') or
+            QBCore.Functions.HasPermission(source, 'god') then
+            return true
+        end
+    end
+
+    -- Method 2: QBCore player permission check
+    if QBCore and QBCore.Functions and QBCore.Functions.GetPlayer then
+        local Player = QBCore.Functions.GetPlayer(source)
+        if Player and Player.PlayerData and Player.PlayerData.permission then
+            local permission = Player.PlayerData.permission
+            if permission == 'admin' or permission == 'god' then
+                return true
+            end
+        end
+    end
+
+    -- Method 3: Ace permission check (FiveM native)
+    if IsPlayerAceAllowed(source, 'command') or
+        IsPlayerAceAllowed(source, 'admin') or
+        IsPlayerAceAllowed(source, 'fl.admin') then
+        return true
+    end
+
+    -- Method 4: Check if player is server owner/console
+    if source == 0 then -- Console
+        return true
+    end
+
+    return false
+end
+
+-- Database status command (FIXED)
 RegisterCommand('dbstatus', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
         return
     end
 
     local dbStatus = FL.Server.DatabaseStatus
     local statusText = dbStatus.isAvailable and '✅ Available' or '❌ Unavailable'
 
-    TriggerClientEvent('QBCore:Notify', source, 'Database Status: ' .. statusText,
-        dbStatus.isAvailable and 'success' or 'error')
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Database Status: ' .. statusText,
+            dbStatus.isAvailable and 'success' or 'error')
+    end
 
     -- Detailed info to console
     print('^3[FL DATABASE STATUS]^7 ======================')
@@ -809,20 +848,16 @@ RegisterCommand('dbstatus', function(source, args, rawCommand)
     print('^3[FL DATABASE STATUS]^7 ======================')
 end, false)
 
--- Force database reconnection command
+-- Force database reconnection command (FIXED)
 RegisterCommand('dbreconnect', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
         return
     end
 
-    FL.Debug('🔄 Manual database reconnection requested by admin: ' .. Player.PlayerData.citizenid)
+    FL.Debug('🔄 Manual database reconnection requested by admin: ' .. (source > 0 and source or 'Console'))
 
     -- Reset reconnection state
     FL.Server.DatabaseStatus.reconnectAttempts = 0
@@ -832,11 +867,19 @@ RegisterCommand('dbreconnect', function(source, args, rawCommand)
     local success = AttemptDatabaseReconnection()
 
     if success then
-        TriggerClientEvent('QBCore:Notify', source, 'Database reconnection attempt started', 'info')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Database reconnection attempt started', 'info')
+        end
+        print('^2[FL DATABASE]^7 Manual reconnection attempt started')
     else
-        TriggerClientEvent('QBCore:Notify', source, 'Could not start database reconnection', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Could not start database reconnection', 'error')
+        end
+        print('^1[FL DATABASE]^7 Could not start database reconnection')
     end
 end, false)
+
+print('^2[FL DATABASE COMMANDS]^7 ✅ Database commands loaded with ENHANCED PERMISSIONS')
 
 -- ====================================================================
 -- CLEANUP ON PLAYER DISCONNECT (ENHANCED WITH DATABASE LOGGING)
@@ -903,3 +946,262 @@ CreateThread(function()
 end)
 
 FL.Debug('🎉 FL Core database loaded with COMPLETE ROBUSTNESS & ERROR RECOVERY')
+
+-- Enhanced database migration function
+function PerformDatabaseMigration(source)
+    source = source or 0
+
+    if not FL.Server.DatabaseAvailable then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Database not available for migration', 'error')
+        end
+        print('^1[FL MIGRATION]^7 ❌ Database not available')
+        return false
+    end
+
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Starting database migration - check console', 'info')
+    end
+
+    print('^3[FL MIGRATION]^7 🔧 Starting database migration...')
+
+    local migrations = {
+        {
+            name = "Add max_units column",
+            query =
+            "ALTER TABLE `fl_emergency_calls` ADD COLUMN IF NOT EXISTS `max_units` int(2) DEFAULT 4 AFTER `assigned_units`"
+        },
+        {
+            name = "Add started_at column",
+            query =
+            "ALTER TABLE `fl_emergency_calls` ADD COLUMN IF NOT EXISTS `started_at` timestamp NULL AFTER `created_at`"
+        },
+        {
+            name = "Add completed_by column",
+            query =
+            "ALTER TABLE `fl_emergency_calls` ADD COLUMN IF NOT EXISTS `completed_by` int(11) DEFAULT NULL AFTER `completed_at`"
+        },
+        {
+            name = "Add memory_only column",
+            query =
+            "ALTER TABLE `fl_emergency_calls` ADD COLUMN IF NOT EXISTS `memory_only` tinyint(1) DEFAULT 0 AFTER `completed_by`"
+        },
+        {
+            name = "Add service_status index",
+            query = "ALTER TABLE `fl_emergency_calls` ADD INDEX IF NOT EXISTS `idx_service_status` (`service`, `status`)"
+        },
+        {
+            name = "Add priority index",
+            query = "ALTER TABLE `fl_emergency_calls` ADD INDEX IF NOT EXISTS `idx_priority` (`priority`)"
+        },
+        {
+            name = "Add max_units index",
+            query = "ALTER TABLE `fl_emergency_calls` ADD INDEX IF NOT EXISTS `idx_max_units` (`max_units`)"
+        },
+        {
+            name = "Update existing records",
+            query = "UPDATE `fl_emergency_calls` SET `max_units` = 4 WHERE `max_units` IS NULL"
+        },
+        {
+            name = "Update memory_only records",
+            query = "UPDATE `fl_emergency_calls` SET `memory_only` = 0 WHERE `memory_only` IS NULL"
+        }
+    }
+
+    local successCount = 0
+    local totalMigrations = #migrations
+
+    for i, migration in pairs(migrations) do
+        print('^6[FL MIGRATION]^7 ' .. i .. '/' .. totalMigrations .. ' - ' .. migration.name)
+
+        ExecuteQuerySafely(migration.query, {}, function(success, result)
+            if success then
+                print('^2[FL MIGRATION]^7 ✅ ' .. migration.name .. ' - SUCCESS')
+                successCount = successCount + 1
+            else
+                print('^1[FL MIGRATION]^7 ❌ ' .. migration.name .. ' - FAILED')
+                print('^1[FL MIGRATION]^7 Query: ' .. migration.query)
+            end
+        end)
+
+        -- Wait a bit between migrations
+        Wait(500)
+    end
+
+    -- Final verification
+    CreateThread(function()
+        Wait(2000) -- Wait for all migrations to complete
+
+        print('^3[FL MIGRATION]^7 📊 Migration Summary:')
+        print('^3[FL MIGRATION]^7 Total Migrations: ' .. totalMigrations)
+        print('^3[FL MIGRATION]^7 Successful: ' .. successCount)
+        print('^3[FL MIGRATION]^7 Failed: ' .. (totalMigrations - successCount))
+
+        if successCount == totalMigrations then
+            print('^2[FL MIGRATION]^7 🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!')
+
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Database migration completed successfully!', 'success')
+            end
+
+            -- Verify the schema
+            VerifyDatabaseSchema(source)
+        else
+            print('^1[FL MIGRATION]^7 ⚠️ Some migrations failed. Check logs above.')
+
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Migration completed with errors - check console', 'error')
+            end
+        end
+    end)
+end
+
+-- Verify database schema after migration
+function VerifyDatabaseSchema(source)
+    source = source or 0
+
+    print('^3[FL VERIFICATION]^7 🔍 Verifying database schema...')
+
+    -- Check if all required columns exist
+    local schemaCheckQuery = [[
+        SELECT
+            COLUMN_NAME,
+            DATA_TYPE,
+            IS_NULLABLE,
+            COLUMN_DEFAULT
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'fl_emergency_calls'
+            AND TABLE_SCHEMA = DATABASE()
+        ORDER BY ORDINAL_POSITION
+    ]]
+
+    ExecuteQuerySafely(schemaCheckQuery, {}, function(success, result)
+        if success and result then
+            print('^3[FL VERIFICATION]^7 📋 Table Schema:')
+            print('^3[FL VERIFICATION]^7 --------------------------------')
+
+            local requiredColumns = {
+                'max_units', 'started_at', 'completed_by', 'memory_only'
+            }
+            local foundColumns = {}
+
+            for _, column in pairs(result) do
+                print('^6[FL VERIFICATION]^7 ' .. column.COLUMN_NAME .. ' (' .. column.DATA_TYPE .. ')')
+
+                for _, reqCol in pairs(requiredColumns) do
+                    if column.COLUMN_NAME == reqCol then
+                        foundColumns[reqCol] = true
+                    end
+                end
+            end
+
+            print('^3[FL VERIFICATION]^7 --------------------------------')
+
+            local allColumnsFound = true
+            for _, reqCol in pairs(requiredColumns) do
+                if foundColumns[reqCol] then
+                    print('^2[FL VERIFICATION]^7 ✅ ' .. reqCol .. ' - EXISTS')
+                else
+                    print('^1[FL VERIFICATION]^7 ❌ ' .. reqCol .. ' - MISSING')
+                    allColumnsFound = false
+                end
+            end
+
+            if allColumnsFound then
+                print('^2[FL VERIFICATION]^7 🎉 ALL REQUIRED COLUMNS EXIST!')
+
+                if source > 0 then
+                    TriggerClientEvent('QBCore:Notify', source, 'Database schema verification passed!', 'success')
+                end
+            else
+                print('^1[FL VERIFICATION]^7 ⚠️ Some required columns are missing!')
+
+                if source > 0 then
+                    TriggerClientEvent('QBCore:Notify', source, 'Schema verification failed - some columns missing',
+                        'error')
+                end
+            end
+        else
+            print('^1[FL VERIFICATION]^7 ❌ Failed to verify schema')
+        end
+    end)
+end
+
+-- Database migration command
+RegisterCommand('updatedatabase', function(source, args, rawCommand)
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
+        return
+    end
+
+    FL.Debug('🔧 Database migration requested by: ' .. (source > 0 and source or 'Console'))
+    PerformDatabaseMigration(source)
+end, false)
+
+-- Database schema verification command
+RegisterCommand('verifyschema', function(source, args, rawCommand)
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
+        return
+    end
+
+    FL.Debug('🔍 Database schema verification requested by: ' .. (source > 0 and source or 'Console'))
+    VerifyDatabaseSchema(source)
+end, false)
+
+-- Test database connection command
+RegisterCommand('testdb', function(source, args, rawCommand)
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
+        return
+    end
+
+    print('^3[FL DB TEST]^7 🧪 Testing database connection...')
+
+    if not MySQL or not MySQL.query then
+        print('^1[FL DB TEST]^7 ❌ MySQL not available')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'MySQL not available', 'error')
+        end
+        return
+    end
+
+    -- Simple test query
+    MySQL.query('SELECT 1 as test, NOW() as current_time', {}, function(result)
+        if result and result[1] and result[1].test == 1 then
+            print('^2[FL DB TEST]^7 ✅ Database connection successful!')
+            print('^2[FL DB TEST]^7 Server Time: ' .. (result[1].current_time or 'unknown'))
+
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Database connection test successful!', 'success')
+            end
+
+            -- Test FL table existence
+            MySQL.query('SHOW TABLES LIKE "fl_%"', {}, function(tables)
+                if tables then
+                    print('^3[FL DB TEST]^7 📋 FL Tables found: ' .. #tables)
+                    for _, table in pairs(tables) do
+                        for _, value in pairs(table) do
+                            print('^6[FL DB TEST]^7 - ' .. value)
+                        end
+                    end
+                else
+                    print('^1[FL DB TEST]^7 ⚠️ No FL tables found')
+                end
+            end)
+        else
+            print('^1[FL DB TEST]^7 ❌ Database connection failed!')
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Database connection test failed!', 'error')
+            end
+        end
+    end)
+end, false)
+
+print('^2[FL DATABASE MIGRATION]^7 ✅ Database migration commands loaded')

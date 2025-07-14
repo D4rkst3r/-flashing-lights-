@@ -1046,29 +1046,80 @@ end)
 -- ====================================================================
 -- ENHANCED ADMIN COMMANDS
 -- ====================================================================
+-- Enhanced permission check with fallbacks
+local function HasAdminPermission(source)
+    if not source or source <= 0 then
+        return false
+    end
 
--- Create test emergency call with custom max units (enhanced)
+    -- Method 1: QBCore permission check
+    if QBCore and QBCore.Functions and QBCore.Functions.HasPermission then
+        if QBCore.Functions.HasPermission(source, 'admin') or
+            QBCore.Functions.HasPermission(source, 'god') then
+            return true
+        end
+    end
+
+    -- Method 2: QBCore player permission check
+    if QBCore and QBCore.Functions and QBCore.Functions.GetPlayer then
+        local Player = QBCore.Functions.GetPlayer(source)
+        if Player and Player.PlayerData and Player.PlayerData.permission then
+            local permission = Player.PlayerData.permission
+            if permission == 'admin' or permission == 'god' then
+                return true
+            end
+        end
+    end
+
+    -- Method 3: Ace permission check (FiveM native)
+    if IsPlayerAceAllowed(source, 'command') or
+        IsPlayerAceAllowed(source, 'admin') or
+        IsPlayerAceAllowed(source, 'fl.admin') then
+        return true
+    end
+
+    -- Method 4: Check if player is server owner/console
+    if source == 0 then -- Console
+        return true
+    end
+
+    return false
+end
+
+
+
+
+-- ====================================================================
+-- ERSETZE ALLE ADMIN COMMANDS IN MAIN.LUA MIT DIESEN VERSIONEN:
+-- ====================================================================
+
+-- Create test emergency call (FIXED PERMISSIONS)
 RegisterCommand('testcall', function(source, args, rawCommand)
     FL.Debug('🧪 testcall command executed by source: ' .. tostring(source))
 
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then
-        FL.Debug('❌ Player not found for testcall command')
-        return
+    -- Enhanced permission check
+    local hasPermission = HasAdminPermission(source)
+    local serviceInfo = nil
+
+    if source > 0 then
+        serviceInfo = GetPlayerServiceInfo(source)
     end
 
-    -- Enhanced permission check
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-    local serviceInfo = GetPlayerServiceInfo(source)
-
     if not hasPermission and not (serviceInfo and serviceInfo.isOnDuty) then
-        TriggerClientEvent('QBCore:Notify', source, 'You need to be an admin or on duty to create test calls', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need to be an admin or on duty to create test calls',
+                'error')
+        end
         return
     end
 
     if #args < 1 then
-        TriggerClientEvent('QBCore:Notify', source, 'Usage: /testcall [fire/police/ems] [max_units] [priority]', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Usage: /testcall [fire/police/ems] [max_units] [priority]',
+                'error')
+        else
+            print('Usage: testcall [fire/police/ems] [max_units] [priority]')
+        end
         return
     end
 
@@ -1077,71 +1128,93 @@ RegisterCommand('testcall', function(source, args, rawCommand)
     local priority = tonumber(args[3]) or 2
 
     if not FL.Functions.ValidateService(service) then
-        TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        else
+            print('Invalid service. Use: fire, police, or ems')
+        end
         return
     end
 
     -- Validate parameters
     if maxUnits < 1 or maxUnits > 10 then
-        TriggerClientEvent('QBCore:Notify', source, 'Max units must be between 1 and 10', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Max units must be between 1 and 10', 'error')
+        else
+            print('Max units must be between 1 and 10')
+        end
         return
     end
 
     if priority < 1 or priority > 3 then
-        TriggerClientEvent('QBCore:Notify', source, 'Priority must be between 1 (high) and 3 (low)', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Priority must be between 1 (high) and 3 (low)', 'error')
+        else
+            print('Priority must be between 1 (high) and 3 (low)')
+        end
         return
     end
 
-    -- Get player coordinates for call location
-    local playerPed = GetPlayerPed(source)
-    if not playerPed or playerPed <= 0 then
-        TriggerClientEvent('QBCore:Notify', source, 'Could not get player location', 'error')
-        return
+    -- Get coordinates
+    local coords
+    if source > 0 then
+        local playerPed = GetPlayerPed(source)
+        if playerPed and playerPed > 0 then
+            local playerCoords = GetEntityCoords(playerPed)
+            coords = vector3(playerCoords.x, playerCoords.y, playerCoords.z)
+        else
+            coords = vector3(0, 0, 0)
+        end
+    else
+        coords = vector3(0, 0, 0) -- Default for console
     end
-
-    local playerCoords = GetEntityCoords(playerPed)
 
     -- Create call data
     local callData = FL.Functions.GenerateEmergencyCall(service)
     if callData then
-        callData.coords = vector3(playerCoords.x, playerCoords.y, playerCoords.z)
+        callData.coords = coords
         callData.max_units = maxUnits
         callData.priority = priority
 
         local callId = CreateEmergencyCall(callData)
         if callId then
-            TriggerClientEvent('QBCore:Notify', source,
-                'Created emergency call: ' .. callId .. ' (Max Units: ' .. maxUnits .. ', Priority: ' .. priority .. ')',
-                'success')
+            local message = 'Created emergency call: ' ..
+            callId .. ' (Max Units: ' .. maxUnits .. ', Priority: ' .. priority .. ')'
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, message, 'success')
+            end
+            print('^2[FL TESTCALL]^7 ' .. message)
             FL.Debug('🚨 Test call created: ' ..
-                callId ..
-                ' for ' ..
-                service ..
-                ' with max units: ' .. maxUnits .. ' priority: ' .. priority .. ' by ' .. Player.PlayerData.citizenid)
+            callId .. ' for ' .. service .. ' with max units: ' .. maxUnits .. ' priority: ' .. priority)
         else
-            TriggerClientEvent('QBCore:Notify', source, 'Failed to create emergency call', 'error')
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Failed to create emergency call', 'error')
+            end
+            print('^1[FL TESTCALL]^7 Failed to create emergency call')
         end
     else
-        TriggerClientEvent('QBCore:Notify', source, 'Failed to generate call data', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Failed to generate call data', 'error')
+        end
+        print('^1[FL TESTCALL]^7 Failed to generate call data')
     end
 end, false)
 
--- Enhanced debug command to check server calls
+-- Enhanced debug command (FIXED PERMISSIONS)
 RegisterCommand('servercalls', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
         return
     end
 
     local count = 0
     local memoryOnlyCount = 0
-    TriggerClientEvent('QBCore:Notify', source, 'Check server console for detailed call info', 'info')
+
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Check server console for detailed call info', 'info')
+    end
 
     print('^3[FL SERVER CALLS DEBUG]^7 ======================')
     print('^3[FL SERVER DEBUG]^7 Database Available: ' .. tostring(FL.Server.DatabaseAvailable))
@@ -1162,7 +1235,7 @@ RegisterCommand('servercalls', function(source, args, rawCommand)
         print('^3[FL SERVER CALLS]^7 Assigned Units: ' .. json.encode(callData.assigned_units or {}))
         print('^3[FL SERVER CALLS]^7 Unit Details Count: ' .. #(callData.unit_details or {}))
         print('^3[FL SERVER CALLS]^7 Coords: ' ..
-            callData.coords.x .. ', ' .. callData.coords.y .. ', ' .. callData.coords.z)
+        callData.coords.x .. ', ' .. callData.coords.y .. ', ' .. callData.coords.z)
         print('^3[FL SERVER CALLS]^7 ---')
     end
 
@@ -1170,28 +1243,24 @@ RegisterCommand('servercalls', function(source, args, rawCommand)
     print('^3[FL SERVER CALLS DEBUG]^7 Memory-only calls: ' .. memoryOnlyCount)
     print('^3[FL SERVER CALLS DEBUG]^7 ======================')
 
-    TriggerClientEvent('QBCore:Notify', source,
-        'Found ' .. count .. ' active calls (' .. memoryOnlyCount .. ' memory-only)', 'success')
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source,
+            'Found ' .. count .. ' active calls (' .. memoryOnlyCount .. ' memory-only)', 'success')
+    end
 end, false)
 
--- ====================================================================
--- DISCORD WEBHOOK TEST COMMANDS
--- ====================================================================
-
--- Discord webhook test command
+-- Discord webhook test command (FIXED PERMISSIONS)
 RegisterCommand('testwebhooks', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
         return
     end
 
-    TriggerClientEvent('QBCore:Notify', source, 'Testing Discord webhooks - check console and Discord', 'info')
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Testing Discord webhooks - check console and Discord', 'info')
+    end
 
     print('^3[FL WEBHOOK TEST]^7 Starting Discord webhook tests...')
 
@@ -1218,6 +1287,15 @@ RegisterCommand('testwebhooks', function(source, args, rawCommand)
 
     -- Test each webhook with a message
     local testServices = { 'fire', 'police', 'ems', 'admin', 'duty', 'emergency' }
+    local playerName = 'Console'
+
+    if source > 0 and QBCore and QBCore.Functions then
+        local Player = QBCore.Functions.GetPlayer(source)
+        if Player and Player.PlayerData and Player.PlayerData.charinfo then
+            playerName = (Player.PlayerData.charinfo.firstname or 'Unknown') ..
+            ' ' .. (Player.PlayerData.charinfo.lastname or 'Player')
+        end
+    end
 
     for _, service in pairs(testServices) do
         if FL.Discord.webhooks[service] and FL.Discord.webhooks[service] ~= '' then
@@ -1232,9 +1310,7 @@ RegisterCommand('testwebhooks', function(source, args, rawCommand)
                         name = '📋 Test Information',
                         value = '**Service:** ' .. string.upper(service) .. '\n' ..
                             '**Time:** <t:' .. os.time() .. ':F>\n' ..
-                            '**Tester:** ' ..
-                            (Player.PlayerData.charinfo.firstname or 'Unknown') ..
-                            ' ' .. (Player.PlayerData.charinfo.lastname or 'Player'),
+                            '**Tester:** ' .. playerName,
                         inline = false
                     }
                 }
@@ -1255,61 +1331,23 @@ RegisterCommand('testwebhooks', function(source, args, rawCommand)
     print('^3[FL WEBHOOK TEST]^7 Webhook tests completed!')
 end, false)
 
--- Test Discord for duty changes
-RegisterCommand('testduty', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
-        return
-    end
-
-    local testService = args[1] or 'fire'
-
-    if not FL.Functions.ValidateService(testService) then
-        TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
-        return
-    end
-
-    TriggerClientEvent('QBCore:Notify', source, 'Testing duty change Discord log for ' .. testService, 'info')
-
-    -- Test duty start
-    if FL.Discord and FL.Discord.LogDutyChange then
-        FL.Discord.LogDutyChange(source, testService, true, 'test_station')
-        print('^2[FL DUTY TEST]^7 Sent duty START test for ' .. testService)
-
-        -- Test duty end after 5 seconds
-        CreateThread(function()
-            Wait(5000)
-            FL.Discord.LogDutyChange(source, testService, false, 'test_station')
-            print('^2[FL DUTY TEST]^7 Sent duty END test for ' .. testService)
-        end)
-    else
-        print('^1[FL DUTY TEST]^7 ❌ FL.Discord.LogDutyChange not available')
-    end
-end, false)
-
--- Test Discord for emergency calls
+-- Test Discord for emergency calls (FIXED PERMISSIONS)
 RegisterCommand('testcalldiscord', function(source, args, rawCommand)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return end
-
-    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
-        QBCore.Functions.HasPermission(source, 'god')
-
-    if not hasPermission then
-        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
         return
     end
 
     local testService = args[1] or 'fire'
 
     if not FL.Functions.ValidateService(testService) then
-        TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        else
+            print('Invalid service. Use: fire, police, or ems')
+        end
         return
     end
 
@@ -1328,7 +1366,11 @@ RegisterCommand('testcalldiscord', function(source, args, rawCommand)
         max_units = 4
     }
 
-    TriggerClientEvent('QBCore:Notify', source, 'Testing emergency call Discord logs for ' .. testService, 'info')
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Testing emergency call Discord logs for ' .. testService, 'info')
+    end
+
+    print('^3[FL CALL TEST]^7 Testing emergency call Discord logs for ' .. testService)
 
     if FL.Discord and FL.Discord.LogEmergencyCall then
         -- Test new call
@@ -1343,8 +1385,7 @@ RegisterCommand('testcalldiscord', function(source, args, rawCommand)
             testCall.unit_details = { {
                 source = source,
                 callsign = 'TEST01',
-                name = (Player.PlayerData.charinfo.firstname or 'Test') ..
-                ' ' .. (Player.PlayerData.charinfo.lastname or 'Officer'),
+                name = 'Test Officer',
                 rank = 'Test Rank'
             } }
             FL.Discord.LogEmergencyCall(testCall, 'call_assigned')
@@ -1362,6 +1403,50 @@ RegisterCommand('testcalldiscord', function(source, args, rawCommand)
         print('^1[FL CALL TEST]^7 ❌ FL.Discord.LogEmergencyCall not available')
     end
 end, false)
+
+-- Test Discord for duty changes (FIXED PERMISSIONS)
+RegisterCommand('testduty', function(source, args, rawCommand)
+    if not HasAdminPermission(source) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        end
+        return
+    end
+
+    local testService = args[1] or 'fire'
+
+    if not FL.Functions.ValidateService(testService) then
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        else
+            print('Invalid service. Use: fire, police, or ems')
+        end
+        return
+    end
+
+    if source > 0 then
+        TriggerClientEvent('QBCore:Notify', source, 'Testing duty change Discord log for ' .. testService, 'info')
+    end
+
+    print('^3[FL DUTY TEST]^7 Testing duty change Discord log for ' .. testService)
+
+    -- Test duty start
+    if FL.Discord and FL.Discord.LogDutyChange then
+        FL.Discord.LogDutyChange(source, testService, true, 'test_station')
+        print('^2[FL DUTY TEST]^7 Sent duty START test for ' .. testService)
+
+        -- Test duty end after 5 seconds
+        CreateThread(function()
+            Wait(5000)
+            FL.Discord.LogDutyChange(source, testService, false, 'test_station')
+            print('^2[FL DUTY TEST]^7 Sent duty END test for ' .. testService)
+        end)
+    else
+        print('^1[FL DUTY TEST]^7 ❌ FL.Discord.LogDutyChange not available')
+    end
+end, false)
+
+print('^2[FL ADMIN COMMANDS]^7 ✅ All admin commands loaded with ENHANCED PERMISSIONS')
 
 -- ====================================================================
 -- RATE LIMIT CLEANUP THREAD
