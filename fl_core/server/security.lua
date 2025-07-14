@@ -1,12 +1,12 @@
 -- ====================================================================
--- FL EMERGENCY SERVICES - SECURITY & RATE LIMITING
+-- FL EMERGENCY SERVICES - SECURITY & RATE LIMITING (SELF-FEHLER BEHOBEN)
 -- ====================================================================
 
 FL.Security = {
     rateLimits = {},
 
-    -- Check if player exceeds rate limit
-    checkRateLimit = function(source, action, limit, window)
+    -- Check if player exceeds rate limit (SELF-FEHLER BEHOBEN)
+    checkRateLimit = function(self, source, action, limit, window)
         limit = limit or 10
         window = window or 60000 -- 1 minute default
 
@@ -34,8 +34,8 @@ FL.Security = {
         return true
     end,
 
-    -- Clean old rate limit data
-    cleanup = function()
+    -- Clean old rate limit data (SELF-FEHLER BEHOBEN)
+    cleanup = function(self)
         local now = GetGameTimer()
         local cleaned = 0
 
@@ -61,11 +61,11 @@ FL.Security = {
     end
 }
 
--- Rate limit middleware for server events
+-- Rate limit middleware for server events (VEREINFACHT)
 function FL.RateLimitMiddleware(eventName, limit, window)
     return function(handler)
         return function(...)
-            local success, message = FL.Security.checkRateLimit(source, eventName, limit, window)
+            local success, message = FL.Security:checkRateLimit(source, eventName, limit, window)
 
             if not success then
                 TriggerClientEvent('QBCore:Notify', source, message, 'error')
@@ -78,11 +78,11 @@ function FL.RateLimitMiddleware(eventName, limit, window)
     end
 end
 
--- Cleanup thread
+-- Cleanup thread (SELF-FEHLER BEHOBEN)
 CreateThread(function()
     while true do
         Wait(300000) -- 5 minutes
-        FL.Security.cleanup()
+        FL.Security:cleanup()
     end
 end)
 
