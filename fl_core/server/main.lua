@@ -1,6 +1,5 @@
 -- ====================================================================
--- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (RATE LIMITING FIX)
--- KRITISCHER FIX: Rate Limiting Middleware VOR Verwendung definiert (Line 681 Fix)
+-- FLASHING LIGHTS EMERGENCY SERVICES - SERVER MAIN (RATE LIMIT FIXED)
 -- ====================================================================
 
 local QBCore = FL.GetFramework()
@@ -15,13 +14,14 @@ FL.Server = {
 }
 
 -- ====================================================================
--- RATE LIMITING SYSTEM (FRÜH DEFINIERT - FIX FÜR LINE 681)
+-- RATE LIMITING SYSTEM (MOVED FROM SECURITY.LUA)
 -- ====================================================================
 
--- Simple rate limiting storage
-FL.RateLimits = {}
+FL.Security = FL.Security or {
+    rateLimits = {}
+}
 
--- Rate limit middleware function (KORRIGIERT: VOR Verwendung definiert)
+-- Rate limit middleware for server events
 function FL.RateLimitMiddleware(eventName, limit, window)
     limit = limit or 10
     window = window or 60000 -- 1 minute default
@@ -30,7 +30,7 @@ function FL.RateLimitMiddleware(eventName, limit, window)
         return function(...)
             local now = GetGameTimer()
             local key = source .. '_' .. eventName
-            local requests = FL.RateLimits[key] or {}
+            local requests = FL.Security.rateLimits[key] or {}
 
             -- Clean old requests
             local cleanRequests = {}
@@ -49,43 +49,13 @@ function FL.RateLimitMiddleware(eventName, limit, window)
 
             -- Add current request
             table.insert(cleanRequests, now)
-            FL.RateLimits[key] = cleanRequests
+            FL.Security.rateLimits[key] = cleanRequests
 
             -- Call original handler
             handler(...)
         end
     end
 end
-
--- Cleanup rate limits periodically
-CreateThread(function()
-    while true do
-        Wait(300000) -- 5 minutes
-
-        local now = GetGameTimer()
-        local cleaned = 0
-
-        for key, requests in pairs(FL.RateLimits) do
-            local cleanRequests = {}
-            for _, timestamp in pairs(requests) do
-                if now - timestamp <= 300000 then -- Keep 5 minutes of data
-                    table.insert(cleanRequests, timestamp)
-                end
-            end
-
-            if #cleanRequests == 0 then
-                FL.RateLimits[key] = nil
-                cleaned = cleaned + 1
-            else
-                FL.RateLimits[key] = cleanRequests
-            end
-        end
-
-        if cleaned > 0 then
-            FL.Debug('🧹 Cleaned ' .. cleaned .. ' old rate limit entries')
-        end
-    end
-end)
 
 -- Mapping between QBCore jobs and FL services
 FL.JobMapping = {
@@ -298,10 +268,10 @@ local function GetUnitInfo(source)
 end
 
 -- ====================================================================
--- EMERGENCY CALLS SYSTEM (ENHANCED WITH ROBUST ERROR HANDLING)
+-- EMERGENCY CALLS SYSTEM (ENHANCED WITH DISCORD INTEGRATION)
 -- ====================================================================
 
--- Create new emergency call with comprehensive error handling
+-- Create new emergency call with comprehensive error handling + DISCORD
 function CreateEmergencyCall(callData)
     if not callData or not callData.service or not callData.coords then
         FL.Debug('❌ CreateEmergencyCall: Invalid callData provided')
@@ -329,6 +299,17 @@ function CreateEmergencyCall(callData)
     -- Store in memory FIRST (critical for fallback)
     FL.Server.EmergencyCalls[callId] = emergencyCall
     FL.Debug('📝 Call stored in memory: ' .. callId .. ' - Status: ' .. emergencyCall.status)
+
+    -- 🔥 DISCORD LOG - NEW CALL
+    CreateThread(function()
+        Wait(500) -- Small delay to ensure FL.Discord is loaded
+        if FL.Discord and FL.Discord.LogEmergencyCall then
+            FL.Discord.LogEmergencyCall(emergencyCall, 'call_new')
+            FL.Debug('📢 Discord: Logged new emergency call')
+        else
+            FL.Debug('⚠️ Discord logging not available for new call')
+        end
+    end)
 
     -- Store in database with comprehensive error handling
     if FL.Server.DatabaseAvailable and MySQL and MySQL.insert then
@@ -382,7 +363,7 @@ function CreateEmergencyCall(callData)
     return callId
 end
 
--- Assign unit to emergency call (COMPLETELY REWRITTEN FOR ROBUSTNESS)
+-- Assign unit to emergency call (ENHANCED WITH DISCORD)
 function AssignUnitToCall(callId, source)
     FL.Debug('🎯 AssignUnitToCall called - CallID: ' .. tostring(callId) .. ', Source: ' .. tostring(source))
 
@@ -464,6 +445,17 @@ function AssignUnitToCall(callId, source)
 
     FL.Debug('🔄 Updated call status to: ' .. call.status .. ' - Assigned units: ' .. #call.assigned_units)
     FL.Debug('👥 Unit details: ' .. json.encode(call.unit_details))
+
+    -- 🔥 DISCORD LOG - CALL ASSIGNED
+    CreateThread(function()
+        Wait(200) -- Small delay
+        if FL.Discord and FL.Discord.LogEmergencyCall then
+            FL.Discord.LogEmergencyCall(call, 'call_assigned')
+            FL.Debug('📢 Discord: Logged call assignment')
+        else
+            FL.Debug('⚠️ Discord logging not available for call assignment')
+        end
+    end)
 
     -- Update database with enhanced error handling
     if FL.Server.DatabaseAvailable and MySQL and MySQL.update and not call.memory_only then
@@ -591,7 +583,7 @@ function StartWorkingOnCall(callId, source)
     return true, 'Call started successfully'
 end
 
--- Complete emergency call (enhanced with comprehensive error handling)
+-- Complete emergency call (ENHANCED WITH DISCORD)
 function CompleteEmergencyCall(callId, source)
     FL.Debug('✅ CompleteEmergencyCall called - CallID: ' .. tostring(callId) .. ', Source: ' .. tostring(source))
 
@@ -641,6 +633,17 @@ function CompleteEmergencyCall(callId, source)
     elseif call.created_at then
         call.response_time = call.completed_at - call.created_at
     end
+
+    -- 🔥 DISCORD LOG - CALL COMPLETED
+    CreateThread(function()
+        Wait(200) -- Small delay
+        if FL.Discord and FL.Discord.LogEmergencyCall then
+            FL.Discord.LogEmergencyCall(call, 'call_completed')
+            FL.Debug('📢 Discord: Logged call completion')
+        else
+            FL.Debug('⚠️ Discord logging not available for call completion')
+        end
+    end)
 
     -- Update database with comprehensive error handling
     if FL.Server.DatabaseAvailable and MySQL and MySQL.update and not call.memory_only then
@@ -747,10 +750,10 @@ function GetPlayerServiceInfo(source)
 end
 
 -- ====================================================================
--- SERVER EVENTS (MIT KORREKTEM RATE LIMITING - FIX KOMPLETT)
+-- SERVER EVENTS (MIT KORREKTEM RATE LIMITING)
 -- ====================================================================
 
--- Enhanced server event for assignment with rate limiting (KORRIGIERT: Function jetzt verfügbar)
+-- Enhanced server event for assignment with rate limiting
 RegisterServerEvent('fl_core:assignToCallFromUI', FL.RateLimitMiddleware('assignToCall', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: assignToCallFromUI - CallID: ' .. tostring(callId))
 
@@ -776,7 +779,7 @@ RegisterServerEvent('fl_core:assignToCallFromUI', FL.RateLimitMiddleware('assign
     })
 end))
 
--- Enhanced server event for starting work on call (KORRIGIERT: Function jetzt verfügbar)
+-- Enhanced server event for starting work on call
 RegisterServerEvent('fl_core:startWorkOnCallFromUI', FL.RateLimitMiddleware('startWork', 5, 30000)(function(callId)
     FL.Debug('📱 Server Event: startWorkOnCallFromUI - CallID: ' .. tostring(callId))
 
@@ -802,7 +805,7 @@ RegisterServerEvent('fl_core:startWorkOnCallFromUI', FL.RateLimitMiddleware('sta
     })
 end))
 
--- Enhanced server event for completion (KORRIGIERT: Function jetzt verfügbar)
+-- Enhanced server event for completion
 RegisterServerEvent('fl_core:completeCallFromUI', FL.RateLimitMiddleware('completeCall', 3, 60000)(function(callId)
     FL.Debug('📱 Server Event: completeCallFromUI - CallID: ' .. tostring(callId))
 
@@ -880,10 +883,10 @@ RegisterServerEvent('fl_core:getActiveCalls', function()
 end)
 
 -- ====================================================================
--- DUTY MANAGEMENT (ENHANCED WITH CALLSIGN GENERATION)
+-- DUTY MANAGEMENT (ENHANCED WITH DISCORD + CALLSIGN GENERATION)
 -- ====================================================================
 
--- Handle duty toggle (integrates with QBCore duty system)
+-- Handle duty toggle (integrates with QBCore duty system + DISCORD)
 function HandleDutyToggle(source, stationId)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then
@@ -909,6 +912,17 @@ function HandleDutyToggle(source, stationId)
         TriggerClientEvent('QBCore:Notify', source, 'You are now off duty', 'success')
         TriggerClientEvent('fl_core:dutyChanged', source, false, service, 0)
 
+        -- 🔥 DISCORD LOG - DUTY END
+        CreateThread(function()
+            Wait(500) -- Small delay to ensure FL.Discord is loaded
+            if FL.Discord and FL.Discord.LogDutyChange then
+                FL.Discord.LogDutyChange(source, service, false, stationId)
+                FL.Debug('📢 Discord: Logged duty end for ' .. service)
+            else
+                FL.Debug('⚠️ Discord logging not available for duty end')
+            end
+        end)
+
         FL.Debug(Player.PlayerData.citizenid .. ' ended duty for ' .. service)
     else
         -- Start duty
@@ -923,6 +937,17 @@ function HandleDutyToggle(source, stationId)
 
         local gradeLevel = (jobData.grade and jobData.grade.level) and jobData.grade.level or 0
         TriggerClientEvent('fl_core:dutyChanged', source, true, service, gradeLevel)
+
+        -- 🔥 DISCORD LOG - DUTY START
+        CreateThread(function()
+            Wait(500) -- Small delay to ensure FL.Discord is loaded
+            if FL.Discord and FL.Discord.LogDutyChange then
+                FL.Discord.LogDutyChange(source, service, true, stationId)
+                FL.Debug('📢 Discord: Logged duty start for ' .. service)
+            else
+                FL.Debug('⚠️ Discord logging not available for duty start')
+            end
+        end)
 
         FL.Debug(Player.PlayerData.citizenid ..
             ' started duty for ' .. service .. ' as Unit ' .. callsign .. ' at ' .. (stationId or 'unknown'))
@@ -1150,6 +1175,229 @@ RegisterCommand('servercalls', function(source, args, rawCommand)
 end, false)
 
 -- ====================================================================
+-- DISCORD WEBHOOK TEST COMMANDS
+-- ====================================================================
+
+-- Discord webhook test command
+RegisterCommand('testwebhooks', function(source, args, rawCommand)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+
+    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
+        QBCore.Functions.HasPermission(source, 'god')
+
+    if not hasPermission then
+        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        return
+    end
+
+    TriggerClientEvent('QBCore:Notify', source, 'Testing Discord webhooks - check console and Discord', 'info')
+
+    print('^3[FL WEBHOOK TEST]^7 Starting Discord webhook tests...')
+
+    -- Test Discord configuration
+    if not FL.Discord then
+        print('^1[FL WEBHOOK TEST]^7 ❌ FL.Discord not available')
+        return
+    end
+
+    if not FL.Discord.enabled then
+        print('^1[FL WEBHOOK TEST]^7 ❌ Discord integration disabled')
+        return
+    end
+
+    -- Check webhook URLs
+    print('^3[FL WEBHOOK TEST]^7 Webhook Configuration:')
+    for service, url in pairs(FL.Discord.webhooks) do
+        local status = (url and url ~= '') and '✅ SET' or '❌ MISSING'
+        print('^6[FL WEBHOOK TEST]^7 ' .. string.upper(service) .. ': ' .. status)
+        if url and url ~= '' then
+            print('^6[FL WEBHOOK TEST]^7 URL: ' .. string.sub(url, 1, 50) .. '...')
+        end
+    end
+
+    -- Test each webhook with a message
+    local testServices = { 'fire', 'police', 'ems', 'admin', 'duty', 'emergency' }
+
+    for _, service in pairs(testServices) do
+        if FL.Discord.webhooks[service] and FL.Discord.webhooks[service] ~= '' then
+            print('^2[FL WEBHOOK TEST]^7 Testing ' .. service .. ' webhook...')
+
+            local embed = FL.Discord.CreateEmbed(
+                '🧪 WEBHOOK TEST - ' .. string.upper(service),
+                'This is a test message for the ' .. service .. ' webhook.',
+                FL.Discord.colors[service] or FL.Discord.colors.info,
+                {
+                    {
+                        name = '📋 Test Information',
+                        value = '**Service:** ' .. string.upper(service) .. '\n' ..
+                            '**Time:** <t:' .. os.time() .. ':F>\n' ..
+                            '**Tester:** ' ..
+                            (Player.PlayerData.charinfo.firstname or 'Unknown') ..
+                            ' ' .. (Player.PlayerData.charinfo.lastname or 'Player'),
+                        inline = false
+                    }
+                }
+            )
+
+            if FL.Discord.SendWebhook then
+                FL.Discord.SendWebhook(FL.Discord.webhooks[service], embed, nil, 'high')
+            else
+                print('^1[FL WEBHOOK TEST]^7 ❌ FL.Discord.SendWebhook function not available')
+            end
+        else
+            print('^1[FL WEBHOOK TEST]^7 ❌ No webhook URL for: ' .. service)
+        end
+
+        Wait(1000) -- Wait 1 second between tests to avoid rate limiting
+    end
+
+    print('^3[FL WEBHOOK TEST]^7 Webhook tests completed!')
+end, false)
+
+-- Test Discord for duty changes
+RegisterCommand('testduty', function(source, args, rawCommand)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+
+    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
+        QBCore.Functions.HasPermission(source, 'god')
+
+    if not hasPermission then
+        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        return
+    end
+
+    local testService = args[1] or 'fire'
+
+    if not FL.Functions.ValidateService(testService) then
+        TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        return
+    end
+
+    TriggerClientEvent('QBCore:Notify', source, 'Testing duty change Discord log for ' .. testService, 'info')
+
+    -- Test duty start
+    if FL.Discord and FL.Discord.LogDutyChange then
+        FL.Discord.LogDutyChange(source, testService, true, 'test_station')
+        print('^2[FL DUTY TEST]^7 Sent duty START test for ' .. testService)
+
+        -- Test duty end after 5 seconds
+        CreateThread(function()
+            Wait(5000)
+            FL.Discord.LogDutyChange(source, testService, false, 'test_station')
+            print('^2[FL DUTY TEST]^7 Sent duty END test for ' .. testService)
+        end)
+    else
+        print('^1[FL DUTY TEST]^7 ❌ FL.Discord.LogDutyChange not available')
+    end
+end, false)
+
+-- Test Discord for emergency calls
+RegisterCommand('testcalldiscord', function(source, args, rawCommand)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+
+    local hasPermission = QBCore.Functions.HasPermission(source, 'admin') or
+        QBCore.Functions.HasPermission(source, 'god')
+
+    if not hasPermission then
+        TriggerClientEvent('QBCore:Notify', source, 'You need admin permissions for this command', 'error')
+        return
+    end
+
+    local testService = args[1] or 'fire'
+
+    if not FL.Functions.ValidateService(testService) then
+        TriggerClientEvent('QBCore:Notify', source, 'Invalid service. Use: fire, police, or ems', 'error')
+        return
+    end
+
+    -- Create test call data
+    local testCall = {
+        id = 'FLTEST' .. os.time(),
+        service = testService,
+        type = 'test_emergency',
+        coords = { x = 0, y = 0, z = 0 },
+        priority = 1,
+        description = 'This is a test emergency call for Discord webhook testing',
+        status = 'pending',
+        assigned_units = {},
+        unit_details = {},
+        created_at = os.time(),
+        max_units = 4
+    }
+
+    TriggerClientEvent('QBCore:Notify', source, 'Testing emergency call Discord logs for ' .. testService, 'info')
+
+    if FL.Discord and FL.Discord.LogEmergencyCall then
+        -- Test new call
+        FL.Discord.LogEmergencyCall(testCall, 'call_new')
+        print('^2[FL CALL TEST]^7 Sent NEW CALL test for ' .. testService)
+
+        -- Test assigned call after 3 seconds
+        CreateThread(function()
+            Wait(3000)
+            testCall.status = 'assigned'
+            testCall.assigned_units = { source }
+            testCall.unit_details = { {
+                source = source,
+                callsign = 'TEST01',
+                name = (Player.PlayerData.charinfo.firstname or 'Test') ..
+                ' ' .. (Player.PlayerData.charinfo.lastname or 'Officer'),
+                rank = 'Test Rank'
+            } }
+            FL.Discord.LogEmergencyCall(testCall, 'call_assigned')
+            print('^2[FL CALL TEST]^7 Sent ASSIGNED CALL test for ' .. testService)
+
+            -- Test completed call after 3 more seconds
+            Wait(3000)
+            testCall.status = 'completed'
+            testCall.completed_at = os.time()
+            testCall.response_time = 120 -- 2 minutes
+            FL.Discord.LogEmergencyCall(testCall, 'call_completed')
+            print('^2[FL CALL TEST]^7 Sent COMPLETED CALL test for ' .. testService)
+        end)
+    else
+        print('^1[FL CALL TEST]^7 ❌ FL.Discord.LogEmergencyCall not available')
+    end
+end, false)
+
+-- ====================================================================
+-- RATE LIMIT CLEANUP THREAD
+-- ====================================================================
+
+CreateThread(function()
+    while true do
+        Wait(300000) -- 5 minutes
+
+        -- Clean old rate limit data
+        local now = GetGameTimer()
+        local cleaned = 0
+
+        for key, requests in pairs(FL.Security.rateLimits) do
+            local cleanRequests = {}
+            for _, timestamp in pairs(requests) do
+                if now - timestamp <= 300000 then -- Keep 5 minutes of data
+                    table.insert(cleanRequests, timestamp)
+                end
+            end
+
+            if #cleanRequests == 0 then
+                FL.Security.rateLimits[key] = nil
+                cleaned = cleaned + 1
+            else
+                FL.Security.rateLimits[key] = cleanRequests
+            end
+        end
+
+        if cleaned > 0 then
+            FL.Debug('🧹 Cleaned ' .. cleaned .. ' old rate limit entries')
+        end
+    end
+end)
+
+-- ====================================================================
 -- PERFORMANCE MONITORING & CLEANUP
 -- ====================================================================
 
@@ -1265,4 +1513,50 @@ AddEventHandler('playerDropped', function(reason)
     end
 end)
 
-FL.Debug('🎉 FL Core server loaded with COMPLETE ROBUSTNESS & PERFORMANCE FIXES (RATE LIMITING FIXED)')
+-- ====================================================================
+-- HELPER FUNCTIONS FOR DISCORD (REFERENCED IN DISCORD.LUA)
+-- ====================================================================
+
+function GetOnDutyCount(service)
+    local count = 0
+    local Players = QBCore.Functions.GetPlayers()
+
+    for _, playerId in pairs(Players) do
+        local Player = QBCore.Functions.GetPlayer(playerId)
+        if Player and Player.PlayerData.job and Player.PlayerData.job.onduty then
+            local playerService = FL.JobMapping[Player.PlayerData.job.name]
+            if playerService == service then
+                count = count + 1
+            end
+        end
+    end
+
+    return count
+end
+
+function GetActiveCallsCount(service)
+    local count = 0
+    if FL.Server and FL.Server.EmergencyCalls then
+        for _, callData in pairs(FL.Server.EmergencyCalls) do
+            if callData.service == service and callData.status ~= 'completed' then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+FL.Debug('🎉 FL Core server loaded with COMPLETE DISCORD INTEGRATION & RATE LIMITING FIXES')
+
+-- ====================================================================
+-- DEBUG COMMANDS LOADED NOTIFICATION
+-- ====================================================================
+
+FL.Debug('🧪 Available Commands:')
+FL.Debug('📋 /testcall [service] [max_units] [priority] - Create test emergency call')
+FL.Debug('📊 /servercalls - Show server call debug info')
+FL.Debug('🔗 /testwebhooks - Test all Discord webhooks')
+FL.Debug('👮 /testduty [service] - Test duty change Discord logs')
+FL.Debug('🚨 /testcalldiscord [service] - Test emergency call Discord logs')
+FL.Debug('📈 /flstatus - System status')
+FL.Debug('🗄️ /dbstatus - Database status')

@@ -272,7 +272,7 @@ Config.Stations = {
         duty_marker = {
             coords = vector3(310.54, -598.75, 43.28),
             size = vector3(2.0, 2.0, 1.0),
-            color = { r = 0, g = 255, g = 0, a = 100 },
+            color = { r = 0, g = 255, b = 0, a = 100 },
             bobUpAndDown = false,
             faceCamera = false,
             rotate = false
